@@ -1,0 +1,11 @@
+vendor/
+/bootstrap/
+.idea/
+.phpunit.cache/
+.phpunit.result.cache
+/storage/
+composer.lock
+.DS_Store
+.phpstan.cache/
+composer.dev.json
+composer.dev.lock
