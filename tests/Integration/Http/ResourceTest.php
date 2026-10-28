@@ -2,6 +2,7 @@
 
 namespace Venusian\Serve\Tests\Integration\Http;
 
+use Voyager\Database\Instrument\JsonEncodingException;
 use Voyager\Database\Instrument\Model;
 use Mariner\Auth\User;
 use Mariner\Http\Middleware\ValidatePostSize;
@@ -123,6 +124,18 @@ test('resources may be converted to json with to json method', function () {
     ]));
 
     expect($resource->toJson())->toBe('{"id":5,"title":"Test Title","custom":true}');
+});
+
+test('a resource that cannot be encoded throws a json encoding exception naming it', function () {
+    $model = new Post(['id' => 5, 'title' => "\xB1"]);
+
+    expect(fn () => (new PostResource($model))->toJson())->toThrow(
+        JsonEncodingException::class,
+        'Error encoding resource ['.PostResource::class.'] with model ['.Post::class.'] with ID [5] to JSON: Malformed UTF-8',
+    )->and(fn () => (new JsonResource(['title' => "\xB1"]))->toJson())->toThrow(
+        JsonEncodingException::class,
+        'Error encoding resource ['.JsonResource::class.'] with model [array] to JSON: Malformed UTF-8',
+    );
 });
 
 test('an objects may be converted to json', function () {

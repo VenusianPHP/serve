@@ -188,7 +188,13 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
         try {
             $json = json_encode($this->jsonSerialize(), $options | JSON_THROW_ON_ERROR);
         } catch (JsonException $e) {
-            throw JsonEncodingException::forResource($this, $e->getMessage());
+            $id = is_object($this->resource) && method_exists($this->resource, 'getKey')
+                ? ' with ID ['.$this->resource->getKey().']'
+                : '';
+
+            throw new JsonEncodingException(
+                'Error encoding resource ['.static::class.'] with model ['.get_debug_type($this->resource).']'.$id.' to JSON: '.$e->getMessage(), 0, $e
+            );
         }
 
         return $json;

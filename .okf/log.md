@@ -2,6 +2,8 @@
 
 ## 2026-10-28
 
+* **Update**: [Static analysis](orientation/static-analysis.md) — PHPStan runs at level 1 (was 5), Angel's call; the 32 suppressions that only matched at levels 2 to 5 are gone, three remain.
+* **Fix**: [Http](http/component.md) — `JsonResource::toJson()` builds its `JsonEncodingException` itself: framework 0.11.0 has no `forResource()`, so an unencodable resource raised an undefined-method Error. The message names the resource class, the model's type and, for a model, its key.
 * **Update**: CI runs eight cells: PHP 8.4 and 8.5, NTS and ZTS, on Linux (with the Redis and MySQL services) and macOS (no service containers there, so those integration tests skip). ZTS cells load ext-parallel, keep swoole out and require a thread-capable PHP, so the full suite runs its thread-pool cases; the separate threads job is gone. PHPStan runs on Linux 8.4 NTS.
 * **Fix**: `ImagickDriverTest`'s `ensureImageFormatCanBeEncoded()` skips through `test()->markTestSkipped()`; a plain function has no `$this`, so on an Imagick without a HEIC/JXL/AVIF encoder (GitHub's runners) the six rows errored instead of skipping.
 * **Creation**: [Static analysis](orientation/static-analysis.md) — PHPStan at level 5 and the rules for suppressions: no baseline, one reasoned entry per cause, docblock types not treated as certain, app-only traits analysed through phpstan/TraitConsumers.php.

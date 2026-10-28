@@ -1,7 +1,7 @@
 ---
 type: Practice
 title: Static analysis
-description: serve runs PHPStan at level 5 over src, with no baseline; every suppression is a phpstan.neon entry per cause with its reason.
+description: serve runs PHPStan at level 1 over src, with no baseline; every suppression is a phpstan.neon entry per cause with its reason.
 tags: [phpstan, quality, ci]
 resource: phpstan.neon
 generated: { by: claude-code/claude-opus-5-5, at: 2026-10-28T00:00:00Z }
@@ -13,7 +13,7 @@ sources:
 
 # Level and scope
 
-`vendor/bin/phpstan analyse` runs at **level 5** over `src/` and `phpstan/TraitConsumers.php`, and must report no errors.[^phpstan-neon] It was raised from level 0 one level at a time; the real defects each level found were fixed in `src`, and the commit for each level lists them.
+`vendor/bin/phpstan analyse` runs at **level 1** over `src/` and `phpstan/TraitConsumers.php`, and must report no errors.[^phpstan-neon] It once reached level 5, one level at a time, with each level's real defects fixed in `src`; it is held at level 1 by Angel's call (2026-10-28), so the suppressions for levels 2 to 5 are gone.
 
 # Rules
 
@@ -25,6 +25,6 @@ sources:
 
 # Raising the level
 
-Raise `level` by one, fix what is real in `src`, add an entry with a reason for each remaining cause, and commit that level on its own with its findings listed. Run the full Pest suite and the core isolation check before committing.
+The level stays at 1 until Angel asks for more. When he does, raise `level` by one, fix what is real in `src`, add an entry with a reason for each remaining cause, and commit that level on its own with its findings listed. Run the full Pest suite and the core isolation check before committing.
 
 [^phpstan-neon]: `phpstan.neon` at the repository root.
