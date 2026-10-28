@@ -11,12 +11,16 @@ permissions:
   contents: read
 
 jobs:
-  tests:
+  # PHP 8.4 and 8.5, NTS and ZTS, on Linux. ZTS adds ext-parallel, so the thread-pool cases run
+  # rather than skip. Swoole stays out: loaded beside ext-parallel in a ZTS PHP, a thread crashes or hangs.
+  linux:
     runs-on: ubuntu-latest
 
     strategy:
       fail-fast: false
       matrix:
+        php: ['8.4', '8.5']
+        ts: [nts, zts]
         # Security floor (composer.json "php": "~8.4.27||^8.5.12"): each line's lowest patched release.
         include:
           - php: '8.4'
@@ -24,7 +28,7 @@ jobs:
           - php: '8.5'
             min: '8.5.12'
 
-    name: PHP ${{ matrix.php }}
+    name: PHP ${{ matrix.php }} ${{ matrix.ts }}, Linux
 
     # The Redis and MySQL integration tests skip where their server is unreachable; these services make every one run.
     services:
@@ -61,9 +65,10 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: curl, dom, fileinfo, gd, intl, libxml, mbstring, pdo_mysql, pdo_sqlite, redis, zip
+          extensions: curl, dom, fileinfo, gd, intl, libxml, mbstring, pdo_mysql, pdo_sqlite, redis, zip${{ matrix.ts == 'zts' && ', parallel, :swoole' || '' }}
           coverage: none
         env:
+          phpts: ${{ matrix.ts == 'zts' && 'ts' || 'nts' }}
           # the newest patch of the line, never a cached older build
           update: true
 
@@ -79,42 +84,9 @@ jobs:
       - name: Install Composer dependencies
         run: composer update --prefer-stable --no-interaction --no-progress
 
-      - name: Execute tests
-        run: vendor/bin/pest
-
-      # Level 0 from phpstan.neon, on one PHP line.
-      - name: Analyse with PHPStan
-        if: matrix.php == '8.4'
-        run: vendor/bin/phpstan analyse --no-progress --memory-limit=2G
-
-  # The loop I/O suites on a ZTS PHP with ext-parallel, so their thread-pool cases run rather
-  # than skip. Swoole stays out: loaded beside ext-parallel in a ZTS PHP, a thread crashes or hangs.
-  threads:
-    runs-on: ubuntu-latest
-
-    name: PHP 8.4 ZTS, threads
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          extensions: curl, dom, fileinfo, gd, intl, libxml, mbstring, pdo_sqlite, zip, parallel, :swoole
-          coverage: none
-        env:
-          phpts: ts
-          update: true
-
-      - name: Refuse a PHP below the patched floor
-        run: |
-          php -r 'if (version_compare(PHP_VERSION, "8.4.27", "<")) { fwrite(STDERR, "PHP ".PHP_VERSION." is below the patched floor 8.4.27".PHP_EOL); exit(1); } echo "PHP ".PHP_VERSION.PHP_EOL;'
-
-      - name: Install Composer dependencies
-        run: composer update --prefer-stable --no-interaction --no-progress
-
-      # Without this, a runner that cannot run threads would skip every thread case and pass.
+      # Without this, a ZTS runner that cannot run threads would skip every thread case and pass.
       - name: Require a PHP that runs threads, without swoole
+        if: matrix.ts == 'zts'
         run: |
           # shellcheck disable=SC2016 # the $ names are PHP's, single-quoted on purpose
           php -r 'require "vendor/autoload.php";
@@ -123,5 +95,62 @@ jobs:
             echo $probe->reason, PHP_EOL;
             exit($probe->supported ? 0 : 1);'
 
-      - name: Execute the loop I/O suites
-        run: vendor/bin/pest tests/Auth/AuthIoTest.php tests/Image/ImageIoTest.php tests/Mail/MailIoTest.php tests/Notifications/NotificationIoTest.php tests/Session/SessionIoTest.php tests/Validation/ValidationIoTest.php
+      - name: Execute tests
+        run: vendor/bin/pest
+
+      # Level 0 from phpstan.neon, on one cell.
+      - name: Analyse with PHPStan
+        if: matrix.php == '8.4' && matrix.ts == 'nts'
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=2G
+
+  # The same four PHPs on macOS. GitHub runs service containers on Linux only, so the Redis and
+  # MySQL integration tests skip here, as they do wherever their server is unreachable.
+  macos:
+    runs-on: macos-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.4', '8.5']
+        ts: [nts, zts]
+        include:
+          - php: '8.4'
+            min: '8.4.27'
+          - php: '8.5'
+            min: '8.5.12'
+
+    name: PHP ${{ matrix.php }} ${{ matrix.ts }}, macOS
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: curl, dom, fileinfo, gd, intl, libxml, mbstring, pdo_mysql, pdo_sqlite, redis, zip${{ matrix.ts == 'zts' && ', parallel, :swoole' || '' }}
+          coverage: none
+        env:
+          phpts: ${{ matrix.ts == 'zts' && 'ts' || 'nts' }}
+          update: true
+
+      - name: Refuse a PHP below the patched floor
+        env:
+          PHP_FLOOR: ${{ matrix.min }}
+        run: |
+          php -r 'if (version_compare(PHP_VERSION, getenv("PHP_FLOOR"), "<")) { fwrite(STDERR, "PHP ".PHP_VERSION." is below the patched floor ".getenv("PHP_FLOOR").PHP_EOL); exit(1); } echo "PHP ".PHP_VERSION.PHP_EOL;'
+
+      - name: Install Composer dependencies
+        run: composer update --prefer-stable --no-interaction --no-progress
+
+      - name: Require a PHP that runs threads, without swoole
+        if: matrix.ts == 'zts'
+        run: |
+          # shellcheck disable=SC2016 # the $ names are PHP's, single-quoted on purpose
+          php -r 'require "vendor/autoload.php";
+            if (extension_loaded("swoole")) { fwrite(STDERR, "swoole is loaded: it breaks ext-parallel in a ZTS PHP".PHP_EOL); exit(1); }
+            $probe = Voyager\IOPools\WorkerPools\Thread\ThreadSupport::probe();
+            echo $probe->reason, PHP_EOL;
+            exit($probe->supported ? 0 : 1);'
+
+      - name: Execute tests
+        run: vendor/bin/pest

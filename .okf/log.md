@@ -2,6 +2,8 @@
 
 ## 2026-10-28
 
+* **Update**: CI runs eight cells: PHP 8.4 and 8.5, NTS and ZTS, on Linux (with the Redis and MySQL services) and macOS (no service containers there, so those integration tests skip). ZTS cells load ext-parallel, keep swoole out and require a thread-capable PHP, so the full suite runs its thread-pool cases; the separate threads job is gone. PHPStan runs on Linux 8.4 NTS.
+* **Fix**: `ImagickDriverTest`'s `ensureImageFormatCanBeEncoded()` skips through `test()->markTestSkipped()`; a plain function has no `$this`, so on an Imagick without a HEIC/JXL/AVIF encoder (GitHub's runners) the six rows errored instead of skipping.
 * **Creation**: [Static analysis](orientation/static-analysis.md) — PHPStan at level 5 and the rules for suppressions: no baseline, one reasoned entry per cause, docblock types not treated as certain, app-only traits analysed through phpstan/TraitConsumers.php.
 * **Update**: [Core](core/component.md) — serve's `config/app.php` is now `config/webapp.php` under its own `webapp` key, published with the other configs; `url`, `asset_url`, `locale`, `fallback_locale` and `maintenance.*` are read as `webapp.*`, and nothing merges into the application's `app.php`.
 

@@ -526,7 +526,7 @@ function imagickFakeImageContents(int $width = 100, int $height = 100): string
 function ensureImageFormatCanBeEncoded(string $format): void
 {
     if (\Imagick::queryFormats(strtoupper($format)) === []) {
-        $this->markTestSkipped("The Imagick extension was not compiled with {$format} support.");
+        test()->markTestSkipped("The Imagick extension was not compiled with {$format} support.");
     }
 
     try {
@@ -541,7 +541,7 @@ function ensureImageFormatCanBeEncoded(string $format): void
     }
 
     if ($encoded === '') {
-        $this->markTestSkipped("The Imagick extension cannot encode {$format} images.");
+        test()->markTestSkipped("The Imagick extension cannot encode {$format} images.");
     }
 }
 
