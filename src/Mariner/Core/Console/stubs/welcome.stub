@@ -1,0 +1,56 @@
+@php
+    use Composer\InstalledVersions;
+
+    $version = fn (string $package) => InstalledVersions::isInstalled($package) ? InstalledVersions::getPrettyVersion($package) : 'not installed';
+@endphp
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ config('app.name', 'Venusian') }}</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 2rem;
+               font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+               background: #0f0d1a; color: #e9e6f5; }
+        main { width: 100%; max-width: 40rem; }
+        h1 { margin: 0 0 .25rem; font-size: 2.5rem; letter-spacing: -.02em;
+             background: linear-gradient(90deg, #f6c177, #eb6f92); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        p { margin: 0 0 2rem; color: #a9a3c2; }
+        dl { display: grid; grid-template-columns: max-content 1fr; gap: .5rem 1.5rem; margin: 0 0 2rem;
+             padding: 1.25rem 1.5rem; border: 1px solid #2a2540; border-radius: .75rem; background: #17142a; }
+        dt { color: #a9a3c2; }
+        dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+        nav { display: flex; flex-wrap: wrap; gap: .75rem; }
+        a { color: #0f0d1a; background: #f6c177; padding: .5rem 1rem; border-radius: .5rem; text-decoration: none; font-weight: 600; }
+        a:hover, a:focus-visible { background: #eb6f92; outline: none; }
+        a.secondary { color: inherit; background: none; border: 1px solid #2a2540; }
+        a.secondary:hover, a.secondary:focus-visible { color: #0f0d1a; }
+        @media (prefers-color-scheme: light) {
+            body { background: #faf8ff; color: #1f1b2e; }
+            p, dt { color: #5c5675; }
+            dl { background: #fff; border-color: #e4def5; }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Venusian</h1>
+    <p>Your app is up and answering.</p>
+
+    <dl>
+        <dt>venusian/serve</dt><dd>{{ $version('venusian/serve') }}</dd>
+        <dt>venusian/framework</dt><dd>{{ $version('venusian/framework') }}</dd>
+        <dt>PHP</dt><dd>{{ PHP_VERSION }} ({{ PHP_SAPI }})</dd>
+    </dl>
+
+    <nav aria-label="Documentation">
+        <a href="https://venusian.projectsaturnstudios.com/docs">Documentation</a>
+        <a href="https://venusian.projectsaturnstudios.com/docs/serve/serving">Serving</a>
+        <a href="https://venusian.projectsaturnstudios.com/docs/serve/deployment">Deployment</a>
+        <a class="secondary" href="https://github.com/VenusianPHP/serve">GitHub</a>
+    </nav>
+</main>
+</body>
+</html>

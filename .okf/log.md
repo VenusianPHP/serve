@@ -1,0 +1,42 @@
+# Update Log
+
+## 2026-10-28
+
+* **Creation**: [Static analysis](orientation/static-analysis.md) — PHPStan at level 5 and the rules for suppressions: no baseline, one reasoned entry per cause, docblock types not treated as certain, app-only traits analysed through phpstan/TraitConsumers.php.
+* **Update**: [Core](core/component.md) — serve's `config/app.php` is now `config/webapp.php` under its own `webapp` key, published with the other configs; `url`, `asset_url`, `locale`, `fallback_locale` and `maintenance.*` are read as `webapp.*`, and nothing merges into the application's `app.php`.
+
+## 2026-10-27
+
+* **Update**: [Core](core/component.md) — install:web publishes a self-contained welcome page (versions, PHP SAPI, doc links) and an app-level `/up`; the HTTP kernel adopts the app's router after boot, fixing 404s under FPM.
+* **Update**: [Server](core/server.md) — static files from `public/` before the app (`serve.static`), and the hidden `serve:worker` no longer breaks `computer list`.
+* **Update**: [Http](http/component.md) — `toResourceCollection()` on paginators too, with links and meta.
+* **Creation**: [Http](http/component.md) — `TransformsToResource`, opt-in per model, with `#[UseResource]`/`#[UseResourceCollection]` and a collection macro; collection cases wait on the framework's `mapInto()` return type.
+* **Update**: [Server](core/server.md) — serving from a running sketch: `app(HttpServer::class)` attached to the sketch's own loop, with an example.
+* **Update**: [Server](core/server.md) — per-request state audit: every process-wide web service keeps only configuration; its per-request state is scoped, fresh for each request.
+* **Update**: [Http](http/component.md) — Precognition's `dispatchUsing()` for apps that run the real action on precognitive requests; Laravel's `app()->bind()` in the hook is refused loudly. The deviation is documented.
+* **Creation**: [Server](core/server.md) — HttpServer, `php computer serve`, process workers, and what thread workers share in one process (environment locking verified in php-src; signal dispositions are the open problem).
+* **Update**: [Auth](auth/component.md) — no cross-request credential leak under `serve` (proven); calls sharing a scope now each get their own request in the guard.
+* **Creation**: [Routing](routing/component.md) — Precognition: the middleware, the two dispatchers chosen per request (not by swapping container bindings), the `precognitive` alias, `$request->validate()`'s precognitive branch and the harness's `withPrecognition()`.
+* **Update**: the split job is on (Angel's call). `.github/split.sh` plans every component push before making one: create a missing branch, fast-forward, or replace only a branch that is a single root commit with no history in common with the split (a first publish over an init commit); anything else stops the publish with nothing pushed. `0.8.x` branches are never touched. `tests/Ci/SplitScriptTest.php` runs it against scratch repositories.
+* **Update**: [View](view/component.md) gains `view:cache` and `view:clear`.
+* **Update**: [Routing](routing/component.md) — URL generation takes plain Instrument models (their route key), as binding already did.
+* **Creation**: [Http](http/component.md) — maintenance mode: contract, file/cache/array drivers, the global middleware, the bypass cookie, `down`/`up`, the front controller's pre-boot page. Queue workers do not pause yet (framework candidate).
+* **Update**: [Core](core/component.md) — the harness `TestCase` uses the framework's `InteractsWithConsole`: `artisan()` in feature tests.
+* **Update**: [Core](core/component.md) — the harness with the framework's `RefreshDatabase`, end to end.
+* **Update**: [Auth](auth/component.md) and [Notifications](notifications/component.md) adopt the framework's `saveAsync()`: the Instrument provider's writes and the notification database channel no longer block the loop.
+* **Creation**: [Core](core/component.md) gains the `Mariner\Core\Testing` HTTP test harness.
+* **Update**: [Core](core/component.md) records the `FoundationServiceProvider` sweep: request validation and signature macros and exception tracking ported, the rest backlogged.
+* **Update**: [Image](image/component.md) gains `via()`; `intervention/image` joins require-dev. Thread-pool cases verified locally under ZTS PHP 8.4.27 + ext-parallel 1.2.15; the earlier crash was swoole loaded alongside parallel.
+* **Update**: [Routing](routing/component.md) gains `routing.throttle_async`. The thread-pool crash is ext-parallel's stale build, not framework code.
+* **Update**: thread-pool cases now run wherever ext-parallel is loaded (`tests/Fixtures/app/config/io-pools.php`). Under ZTS PHP 8.4.27 + ext-parallel they crash with SIGSEGV, as the framework's own thread tests do; the Async sections say so.
+* **Update**: `# Async` sections in [Session](session/component.md), [Auth](auth/component.md), [Routing](routing/component.md), [Validation](validation/component.md) and [Notifications](notifications/component.md). Thread-pool paths are untested anywhere (no ext-parallel locally or in CI). Notifications' database insert stays blocking: the `InsertsVia` trait (`ad8d067`) copied `Model::performInsert()` into Mariner and was reverted; offloaded model saves wait on a framework `Model::saveVia()`.
+* **Update**: [Core](core/component.md) open items: the User model, Authorizable, AuthorizesRequests, ValidatesRequests, EmailVerificationRequest and the policies AuthServiceProvider base are built.
+* **Update**: [Core](core/component.md) is Mariner's Foundation layer: the HTTP kernel (`1c21ee0`), the exception renderer (`0968482`), `install:web` and route-file loading (`9dd438f`), form requests (`922b2a7`). Open items list the approved Foundation pieces still to build and the backlog.
+* **Rename**: the package is `venusian/serve` (was `venusian/webkit`), named for `php computer serve`; the directory moved with its history. Namespace `Mariner\`, splits `venusian-mariner/*` and version 0.10.0 are unchanged; test namespace is `Venusian\Serve\Tests`. Entries below keep the old name.
+* **Update**: [Mariner](orientation/mariner.md) records the upstream version, laravel/framework v13.37.0: every baseline (`f15e03d`) file in all 14 components has the same blob hash as at that tag, and no other tag from v13.32.0 to v13.39.0 matches them all. Test ports use v13.37.0's tests.
+* **Update**: [Core](core/component.md) is the root-only `MarinerServiceProvider` (`3c6d400`), no longer deprecated; it sets the facade root, so the `Facade::$app` items are gone. [NutsAndBolts](nuts-and-bolts/component.md): web fakes live with their packages (`e80381b`); `league/uri` is required for `Uri`. Open items re-derived at `e80381b`. CI runs PHPStan and the Core isolation check.
+* **Update**: every component's `# Open items` re-derived from the tree at `cd3ad91`/`98ac214`: manifests are `venusian-mariner/*`, Laravel branding and the `__laravel_*` keys are gone, Mail and Notifications no longer call missing container methods; per-request singletons listed. `laravel/serializable-closure` and `laravel/prompts` are required packages, not leftovers.
+* **Deprecation**: [Core](core/component.md) — the Core component's classes moved out in `cd3ad91` and `Mariner\Core` is root-only, never split; Vite in [View](view/component.md), Precognition in [Validation](validation/component.md), helpers per package.
+* **Local path repository**: `cd3ad91` committed `{"type":"path","url":"../framework/src/Voyager/*"}` in `composer.json`; `98ac214` removed it. Local development keeps it in the gitignored `composer.dev.json` (run with `COMPOSER=composer.dev.json`); it must not reach the published manifest.
+* **Creation**: [Mariner](orientation/mariner.md) — what Mariner is; webkit requires individual voyager components, the framework never knows webkit.
+* **Creation**: one Module concept per `src/Mariner` component (auth, contracts, cookie, core, http, image, json-schema, mail, notifications, nuts-and-bolts, routing, session, testing, translation, validation, view), written against `86418e6`; each lists the rewrite's open items with file:line.

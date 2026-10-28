@@ -1,0 +1,127 @@
+name: tests
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Security floor (composer.json "php": "~8.4.27||^8.5.12"): each line's lowest patched release.
+        include:
+          - php: '8.4'
+            min: '8.4.27'
+          - php: '8.5'
+            min: '8.5.12'
+
+    name: PHP ${{ matrix.php }}
+
+    # The Redis and MySQL integration tests skip where their server is unreachable; these services make every one run.
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root-password
+          MYSQL_DATABASE: forge
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      DB_HOST: 127.0.0.1
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: curl, dom, fileinfo, gd, intl, libxml, mbstring, pdo_mysql, pdo_sqlite, redis, zip
+          coverage: none
+        env:
+          # the newest patch of the line, never a cached older build
+          update: true
+
+      - name: Refuse a PHP below the patched floor
+        env:
+          PHP_FLOOR: ${{ matrix.min }}
+        run: |
+          php -r 'if (version_compare(PHP_VERSION, getenv("PHP_FLOOR"), "<")) { fwrite(STDERR, "PHP ".PHP_VERSION." is below the patched floor ".getenv("PHP_FLOOR").PHP_EOL); exit(1); } echo "PHP ".PHP_VERSION.PHP_EOL;'
+
+      - name: Keep Mariner\Core out of the split packages
+        run: php .github/check-core-isolation.php
+
+      - name: Install Composer dependencies
+        run: composer update --prefer-stable --no-interaction --no-progress
+
+      - name: Execute tests
+        run: vendor/bin/pest
+
+      # Level 0 from phpstan.neon, on one PHP line.
+      - name: Analyse with PHPStan
+        if: matrix.php == '8.4'
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=2G
+
+  # The loop I/O suites on a ZTS PHP with ext-parallel, so their thread-pool cases run rather
+  # than skip. Swoole stays out: loaded beside ext-parallel in a ZTS PHP, a thread crashes or hangs.
+  threads:
+    runs-on: ubuntu-latest
+
+    name: PHP 8.4 ZTS, threads
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: curl, dom, fileinfo, gd, intl, libxml, mbstring, pdo_sqlite, zip, parallel, :swoole
+          coverage: none
+        env:
+          phpts: ts
+          update: true
+
+      - name: Refuse a PHP below the patched floor
+        run: |
+          php -r 'if (version_compare(PHP_VERSION, "8.4.27", "<")) { fwrite(STDERR, "PHP ".PHP_VERSION." is below the patched floor 8.4.27".PHP_EOL); exit(1); } echo "PHP ".PHP_VERSION.PHP_EOL;'
+
+      - name: Install Composer dependencies
+        run: composer update --prefer-stable --no-interaction --no-progress
+
+      # Without this, a runner that cannot run threads would skip every thread case and pass.
+      - name: Require a PHP that runs threads, without swoole
+        run: |
+          # shellcheck disable=SC2016 # the $ names are PHP's, single-quoted on purpose
+          php -r 'require "vendor/autoload.php";
+            if (extension_loaded("swoole")) { fwrite(STDERR, "swoole is loaded: it breaks ext-parallel in a ZTS PHP".PHP_EOL); exit(1); }
+            $probe = Voyager\IOPools\WorkerPools\Thread\ThreadSupport::probe();
+            echo $probe->reason, PHP_EOL;
+            exit($probe->supported ? 0 : 1);'
+
+      - name: Execute the loop I/O suites
+        run: vendor/bin/pest tests/Auth/AuthIoTest.php tests/Image/ImageIoTest.php tests/Mail/MailIoTest.php tests/Notifications/NotificationIoTest.php tests/Session/SessionIoTest.php tests/Validation/ValidationIoTest.php

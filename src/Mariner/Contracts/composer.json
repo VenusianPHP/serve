@@ -1,0 +1,35 @@
+{
+    "name": "venusian-mariner/contracts",
+    "description": "The Mariner Contracts package.",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Angel Gonzalez",
+            "email": "angel@projectsaturnstudios.com"
+        },
+        {
+            "name": "Taylor Otwell"
+        }
+    ],
+    "require": {
+        "php": "~8.4.27||^8.5.12",
+        "venusian-mariner/http": "^0.11.0",
+        "venusian-mariner/image": "^0.11.0",
+        "venusian-mariner/validation": "^0.11.0",
+        "venusian-voyager/contracts": "^0.11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mariner\\Contracts\\": ""
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.11.x-dev"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev"
+}

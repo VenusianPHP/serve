@@ -1,0 +1,53 @@
+{
+    "name": "venusian-mariner/http",
+    "description": "The Mariner Http package.",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Angel Gonzalez",
+            "email": "angel@projectsaturnstudios.com"
+        },
+        {
+            "name": "Taylor Otwell"
+        }
+    ],
+    "require": {
+        "php": "~8.4.27||^8.5.12",
+        "ext-filter": "*",
+        "fruitcake/php-cors": "^1.3",
+        "symfony/http-foundation": "^8.0.0",
+        "symfony/http-kernel": "^8.0.0",
+        "venusian-mariner/contracts": "^0.11.0",
+        "venusian-mariner/cookie": "^0.11.0",
+        "venusian-mariner/image": "^0.11.0",
+        "venusian-mariner/nuts-and-bolts": "^0.11.0",
+        "venusian-mariner/routing": "^0.11.0",
+        "venusian-mariner/session": "^0.11.0",
+        "venusian-voyager/collections": "^0.11.0",
+        "venusian-voyager/conditionable": "^0.11.0",
+        "venusian-voyager/contracts": "^0.11.0",
+        "venusian-voyager/database": "^0.11.0",
+        "venusian-voyager/filesystem": "^0.11.0",
+        "venusian-voyager/macroable": "^0.11.0",
+        "venusian-voyager/nuts-and-bolts": "^0.11.0",
+        "venusian-voyager/pagination": "^0.11.0",
+        "venusian-voyager/vessel": "^0.11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mariner\\Http\\": ""
+        },
+        "files": [
+            "helpers.php"
+        ]
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.11.x-dev"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev"
+}

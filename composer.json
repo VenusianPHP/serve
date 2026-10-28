@@ -1,0 +1,155 @@
+{
+    "name": "venusian/serve",
+    "description": "The webserver component for VenusianPHP Framework.",
+    "keywords": [
+        "framework",
+        "venusian",
+        "mariner",
+        "http",
+        "web"
+    ],
+    "license": "MIT",
+    "version": "0.11.0",
+    "support": {
+        "issues": "https://github.com/VenusianPHP/serve/issues",
+        "source": "https://github.com/VenusianPHP/serve"
+    },
+    "authors": [
+        {
+            "name": "Angel Gonzalez",
+            "email": "angel@projectsaturnstudios.com"
+        },
+        {
+            "name": "Taylor Otwell"
+        }
+    ],
+    "require": {
+        "php": "~8.4.27||^8.5.12",
+        "brick/math": "^0.15|^0.16|^0.17|^0.18|^1.0",
+        "egulias/email-validator": "^4.0",
+        "ext-ctype": "*",
+        "ext-filter": "*",
+        "ext-hash": "*",
+        "ext-mbstring": "*",
+        "ext-session": "*",
+        "ext-tokenizer": "*",
+        "fruitcake/php-cors": "^1.3",
+        "laravel/prompts": "^0.3.15",
+        "laravel/serializable-closure": "^2.0",
+        "league/commonmark": "^2.8.1",
+        "league/uri-interfaces": "^7.8",
+        "nesbot/carbon": "^3.8.4",
+        "psr/http-message": "^1.1|^2.0",
+        "psr/log": "^1.0|^2.0|^3.0",
+        "symfony/console": "^8.0.0",
+        "symfony/error-handler": "^8.0.0",
+        "symfony/finder": "^8.0",
+        "symfony/http-foundation": "^8.0.0",
+        "symfony/http-kernel": "^8.0.0",
+        "symfony/mailer": "^8.0.0",
+        "symfony/mime": "^v8.0.0",
+        "symfony/routing": "^8.0.0",
+        "tijsverkoyen/css-to-inline-styles": "^2.2.5",
+        "venusian-voyager/broadcasting": "^0.11.0",
+        "venusian-voyager/bus": "^0.11.0",
+        "venusian-voyager/cache": "^0.11.0",
+        "venusian-voyager/collections": "^0.11.0",
+        "venusian-voyager/conditionable": "^0.11.0",
+        "venusian-voyager/config": "^0.11.0",
+        "venusian-voyager/console": "^0.11.0",
+        "venusian-voyager/contracts": "^0.11.0",
+        "venusian-voyager/database": "^0.11.0",
+        "venusian-voyager/encryption": "^0.11.0",
+        "venusian-voyager/filesystem": "^0.11.0",
+        "venusian-voyager/http": "^0.11.0",
+        "venusian-voyager/log": "^0.11.0",
+        "venusian-voyager/macroable": "^0.11.0",
+        "venusian-voyager/nuts-and-bolts": "^0.11.0",
+        "venusian-voyager/pagination": "^0.11.0",
+        "venusian-voyager/pipeline": "^0.11.0",
+        "venusian-voyager/queue": "^0.11.0",
+        "venusian-voyager/redis": "^0.11.0",
+        "venusian-voyager/reflection": "^0.11.0",
+        "venusian-voyager/vessel": "^0.11.0"
+    },
+    "replace": {
+        "venusian-mariner/auth": "self.version",
+        "venusian-mariner/contracts": "self.version",
+        "venusian-mariner/cookie": "self.version",
+        "venusian-mariner/http": "self.version",
+        "venusian-mariner/image": "self.version",
+        "venusian-mariner/json-schema": "self.version",
+        "venusian-mariner/mail": "self.version",
+        "venusian-mariner/notifications": "self.version",
+        "venusian-mariner/nuts-and-bolts": "self.version",
+        "venusian-mariner/routing": "self.version",
+        "venusian-mariner/session": "self.version",
+        "venusian-mariner/testing": "self.version",
+        "venusian-mariner/translation": "self.version",
+        "venusian-mariner/validation": "self.version",
+        "venusian-mariner/view": "self.version"
+    },
+    "suggest": {
+        "aws/aws-sdk-php": "Required to use the SES mail transports (^3.322.9).",
+        "intervention/image": "Required to use the GD and Imagick image drivers (^4.2).",
+        "mockery/mockery": "Required to mock facades in tests (^1.6).",
+        "resend/resend-php": "Required to use the Resend mail transport (^1.0).",
+        "symfony/http-client": "Required for the Cloudflare, Mailgun and Postmark transports and mail HTTP client options (^8.0).",
+        "symfony/mailgun-mailer": "Required to use the Mailgun mail transport (^8.0).",
+        "symfony/postmark-mailer": "Required to use the Postmark mail transport (^8.0).",
+        "symfony/psr-http-message-bridge": "Required to use PSR-7 requests and responses (^8.0)."
+    },
+    "require-dev": {
+        "aws/aws-sdk-php": "^3.322.9",
+        "intervention/image": "^4.2",
+        "mockery/mockery": "^1.6.10",
+        "opis/json-schema": "^2.4.1",
+        "pestphp/pest": "^4",
+        "php-http/discovery": "^1.15",
+        "phpstan/phpstan": "^2.1",
+        "resend/resend-php": "^1.0",
+        "symfony/http-client": "^8.0",
+        "symfony/psr-http-message-bridge": "^8.0",
+        "venusian/framework": "^0.11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Mariner\\": "src/Mariner"
+        },
+        "files": [
+            "src/Mariner/Auth/helpers.php",
+            "src/Mariner/Cookie/helpers.php",
+            "src/Mariner/Http/helpers.php",
+            "src/Mariner/NutsAndBolts/helpers.php",
+            "src/Mariner/Routing/helpers.php",
+            "src/Mariner/Session/helpers.php",
+            "src/Mariner/Translation/helpers.php",
+            "src/Mariner/Validation/helpers.php",
+            "src/Mariner/View/helpers.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Venusian\\Serve\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.11.x-dev"
+        },
+        "venusian": {
+            "providers": [
+                "Mariner\\Core\\Providers\\MarinerServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true,
+            "php-http/discovery": false
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

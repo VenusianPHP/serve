@@ -1,0 +1,9 @@
+<?php
+
+use Mariner\Http\Response;
+use Mariner\NutsAndBolts\Facades\Route;
+
+Route::get('/', fn () => view('welcome'));
+
+// Health check for any front (FPM, nginx); under `computer serve` the server answers it first.
+Route::get('/up', fn () => new Response('OK', 200, ['Content-Type' => 'text/plain; charset=UTF-8']));

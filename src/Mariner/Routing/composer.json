@@ -1,0 +1,65 @@
+{
+    "name": "venusian-mariner/routing",
+    "description": "The Mariner Routing package.",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Angel Gonzalez",
+            "email": "angel@projectsaturnstudios.com"
+        },
+        {
+            "name": "Taylor Otwell"
+        }
+    ],
+    "require": {
+        "php": "~8.4.27||^8.5.12",
+        "ext-filter": "*",
+        "ext-hash": "*",
+        "laravel/prompts": "^0.3.15",
+        "laravel/serializable-closure": "^2.0",
+        "league/uri-interfaces": "^7.8",
+        "psr/http-message": "^1.1|^2.0",
+        "symfony/console": "^8.0.0",
+        "symfony/http-foundation": "^8.0.0",
+        "symfony/http-kernel": "^8.0.0",
+        "symfony/routing": "^8.0.0",
+        "venusian-mariner/auth": "^0.11.0",
+        "venusian-mariner/contracts": "^0.11.0",
+        "venusian-mariner/http": "^0.11.0",
+        "venusian-mariner/nuts-and-bolts": "^0.11.0",
+        "venusian-mariner/session": "^0.11.0",
+        "venusian-voyager/cache": "^0.11.0",
+        "venusian-voyager/collections": "^0.11.0",
+        "venusian-voyager/conditionable": "^0.11.0",
+        "venusian-voyager/console": "^0.11.0",
+        "venusian-voyager/contracts": "^0.11.0",
+        "venusian-voyager/database": "^0.11.0",
+        "venusian-voyager/filesystem": "^0.11.0",
+        "venusian-voyager/macroable": "^0.11.0",
+        "venusian-voyager/nuts-and-bolts": "^0.11.0",
+        "venusian-voyager/pipeline": "^0.11.0",
+        "venusian-voyager/redis": "^0.11.0",
+        "venusian-voyager/reflection": "^0.11.0",
+        "venusian-voyager/vessel": "^0.11.0"
+    },
+    "suggest": {
+        "symfony/psr-http-message-bridge": "Required to use PSR-7 requests and responses (^8.0)."
+    },
+    "autoload": {
+        "psr-4": {
+            "Mariner\\Routing\\": ""
+        },
+        "files": [
+            "helpers.php"
+        ]
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.11.x-dev"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev"
+}

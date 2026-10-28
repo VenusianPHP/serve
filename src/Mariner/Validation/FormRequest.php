@@ -1,0 +1,505 @@
+<?php
+
+namespace Mariner\Validation;
+
+use Mariner\Auth\Access\AuthorizationException;
+use Mariner\Auth\Access\Response;
+use Voyager\Contracts\Vessel\TheServiceContainer;
+use Mariner\Contracts\Validation\Factory as ValidationFactory;
+use Mariner\Contracts\Validation\ValidatesWhenResolved;
+use Mariner\Contracts\Validation\Validator;
+use Mariner\Validation\Attributes\ErrorBag;
+use Mariner\Validation\Attributes\FailOnUnknownFields;
+use Mariner\Validation\Attributes\RedirectTo;
+use Mariner\Validation\Attributes\RedirectToRoute;
+use Mariner\Validation\Attributes\StopOnFirstFailure;
+use Mariner\Http\Request;
+use Mariner\Routing\Redirector;
+use Voyager\NutsAndBolts\DataObjects\Arr;
+use Mariner\Validation\ValidatesWhenResolvedTrait;
+use ReflectionClass;
+
+class FormRequest extends Request implements ValidatesWhenResolved
+{
+    use ValidatesWhenResolvedTrait;
+
+    /**
+     * The container instance.
+     *
+     * @var \Voyager\Contracts\Vessel\TheServiceContainer
+     */
+    protected $container;
+
+    /**
+     * The redirector instance.
+     *
+     * @var \Mariner\Routing\Redirector
+     */
+    protected $redirector;
+
+    /**
+     * The URI to redirect to if validation fails.
+     *
+     * @var string
+     */
+    protected $redirect;
+
+    /**
+     * The route to redirect to if validation fails.
+     *
+     * @var string
+     */
+    protected $redirectRoute;
+
+    /**
+     * The controller action to redirect to if validation fails.
+     *
+     * @var string
+     */
+    protected $redirectAction;
+
+    /**
+     * The key to be used for the view error bag.
+     *
+     * @var string
+     */
+    protected $errorBag = 'default';
+
+    /**
+     * Indicates whether validation should stop after the first rule failure.
+     *
+     * @var bool
+     */
+    protected $stopOnFirstFailure = false;
+
+    /**
+     * The validator instance.
+     *
+     * @var \Mariner\Contracts\Validation\Validator
+     */
+    protected $validator;
+
+    /**
+     * Indicates if unknown fields should be rejected for all form requests.
+     *
+     * @var bool
+     */
+    protected static bool $globalFailOnUnknownFields = false;
+
+    /**
+     * Get the validator instance for the request.
+     *
+     * @return \Mariner\Contracts\Validation\Validator
+     */
+    protected function getValidatorInstance()
+    {
+        if ($this->validator) {
+            return $this->validator;
+        }
+
+        $this->configureFromAttributes();
+
+        $factory = $this->container->make(ValidationFactory::class);
+
+        if (method_exists($this, 'validator')) {
+            $validator = $this->container->call($this->validator(...), ['factory' => $factory]);
+        } else {
+            $validator = $this->createDefaultValidator($factory);
+        }
+
+        if (method_exists($this, 'withValidator')) {
+            $this->withValidator($validator);
+        }
+
+        if (method_exists($this, 'after')) {
+            $validator->after($this->container->call(
+                $this->after(...),
+                ['validator' => $validator]
+            ));
+        }
+
+        if ($this->shouldFailOnUnknownFields()) {
+            $validator->after(function (Validator $validator) {
+                $this->validateNoUnknownFields($validator);
+            });
+        }
+
+        $this->setValidator($validator);
+
+        return $this->validator;
+    }
+
+    /**
+     * Configure the form request from class attributes.
+     *
+     * @return void
+     */
+    protected function configureFromAttributes()
+    {
+        if ($this->nearestClassWithAttribute([StopOnFirstFailure::class], ['stopOnFirstFailure'])) {
+            $this->stopOnFirstFailure = true;
+        }
+
+        $reflection = $this->nearestClassWithAttribute(
+            [RedirectTo::class, RedirectToRoute::class], ['redirect', 'redirectRoute', 'redirectAction']
+        );
+
+        if ($reflection) {
+            $redirectTo = $reflection->getAttributes(RedirectTo::class);
+
+            if ($redirectTo !== []) {
+                $this->redirect = $redirectTo[0]->newInstance()->url;
+            }
+
+            $redirectToRoute = $reflection->getAttributes(RedirectToRoute::class);
+
+            if ($redirectToRoute !== []) {
+                $this->redirectRoute = $redirectToRoute[0]->newInstance()->route;
+            }
+        }
+
+        if ($reflection = $this->nearestClassWithAttribute([ErrorBag::class], ['errorBag'])) {
+            $this->errorBag = $reflection->getAttributes(ErrorBag::class)[0]->newInstance()->name;
+        }
+    }
+
+    /**
+     * Create the default validator instance.
+     *
+     * @param  \Mariner\Contracts\Validation\Factory  $factory
+     * @return \Mariner\Contracts\Validation\Validator
+     */
+    protected function createDefaultValidator(ValidationFactory $factory)
+    {
+        $rules = $this->validationRules();
+
+        $validator = $factory->make(
+            $this->validationData(),
+            $rules,
+            $this->messages(),
+            $this->attributes(),
+        )->stopOnFirstFailure($this->stopOnFirstFailure);
+
+        if ($this->isPrecognitive()) {
+            $validator->setRules(
+                $this->filterPrecognitiveRules($validator->getRulesWithoutPlaceholders())
+            );
+        }
+
+        return $validator;
+    }
+
+    /**
+     * Get data to be validated from the request.
+     *
+     * @return array
+     */
+    public function validationData()
+    {
+        return $this->all();
+    }
+
+    /**
+     * Get the validation rules for this form request.
+     *
+     * @return array
+     */
+    protected function validationRules()
+    {
+        return method_exists($this, 'rules') ? $this->container->call([$this, 'rules']) : [];
+    }
+
+    /**
+     * Determine if fields not present in rules should fail validation.
+     *
+     * @return bool
+     */
+    protected function shouldFailOnUnknownFields(): bool
+    {
+        $reflection = $this->nearestClassWithAttribute([FailOnUnknownFields::class]);
+
+        return $reflection
+            ? $reflection->getAttributes(FailOnUnknownFields::class)[0]->newInstance()->value
+            : static::$globalFailOnUnknownFields;
+    }
+
+    /**
+     * Validate that no unknown fields were sent as input.
+     *
+     * @param  \Mariner\Contracts\Validation\Validator  $validator
+     * @return void
+     */
+    protected function validateNoUnknownFields(Validator $validator): void
+    {
+        $allowedKeys = array_keys($this->validationRules());
+
+        $input = $this->isJson() ? $this->json()->all() : $this->request->all();
+
+        $input = Arr::except($input, ['_token', '_method']);
+
+        foreach ($this->dotInputKeys($input) as $inputKey) {
+            if (! $this->isKnownField($inputKey, $allowedKeys)) {
+                $inputKey = str_replace('\.', '.', $inputKey);
+
+                $validator->errors()->add($inputKey, trans('validation.prohibited', [
+                    'attribute' => str_replace('_', ' ', $inputKey),
+                ]));
+            }
+        }
+    }
+
+    /**
+     * Flatten the given input's keys into dot notation, escaping literal dots within keys.
+     *
+     * @param  array  $input
+     * @param  string  $prefix
+     * @return array
+     */
+    protected function dotInputKeys(array $input, string $prefix = ''): array
+    {
+        $keys = [];
+
+        foreach ($input as $key => $value) {
+            $key = $prefix.str_replace('.', '\.', (string) $key);
+
+            if (is_array($value) && $value !== []) {
+                $keys = array_merge($keys, $this->dotInputKeys($value, $key.'.'));
+            } else {
+                $keys[] = $key;
+            }
+        }
+
+        return $keys;
+    }
+
+    /**
+     * Determine if the given input key is an allowed key based on the validation rules.
+     *
+     * @param  string  $inputKey
+     * @param  array  $allowedKeys
+     * @return bool
+     */
+    protected function isKnownField(string $inputKey, array $allowedKeys): bool
+    {
+        foreach ($allowedKeys as $ruleKey) {
+            if ($ruleKey === $inputKey) {
+                return true;
+            }
+
+            if (str_ends_with($inputKey, '_confirmation') &&
+                $ruleKey === substr($inputKey, 0, -13)) {
+                return true;
+            }
+
+            if (str_contains($ruleKey, '*')) {
+                $pattern = '/^'.str_replace('\*', '(?:[^.\\\\]|\\\\.)+', preg_quote($ruleKey, '/')).'$/';
+
+                if (preg_match($pattern, $inputKey)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Handle a failed validation attempt.
+     *
+     * @param  \Mariner\Contracts\Validation\Validator  $validator
+     * @return void
+     *
+     * @throws \Mariner\Validation\ValidationException
+     */
+    protected function failedValidation(Validator $validator)
+    {
+        $exception = $validator->getException();
+
+        throw (new $exception($validator))
+            ->errorBag($this->errorBag)
+            ->redirectTo($this->getRedirectUrl());
+    }
+
+    /**
+     * Get the URL to redirect to on a validation error.
+     *
+     * @return string
+     */
+    protected function getRedirectUrl()
+    {
+        $url = $this->redirector->getUrlGenerator();
+
+        return match (true) {
+            ! empty($this->redirect) => $url->to($this->redirect),
+            ! empty($this->redirectRoute) => $url->route($this->redirectRoute),
+            ! empty($this->redirectAction) => $url->action($this->redirectAction),
+            default => $url->previous(),
+        };
+    }
+
+    /**
+     * Determine if the request passes the authorization check.
+     *
+     * @return bool
+     *
+     * @throws \Mariner\Auth\Access\AuthorizationException
+     */
+    protected function passesAuthorization()
+    {
+        if (method_exists($this, 'authorize')) {
+            $result = $this->container->call([$this, 'authorize']);
+
+            return $result instanceof Response ? $result->authorize() : $result;
+        }
+
+        return true;
+    }
+
+    /**
+     * Handle a failed authorization attempt.
+     *
+     * @return void
+     *
+     * @throws \Mariner\Auth\Access\AuthorizationException
+     */
+    protected function failedAuthorization()
+    {
+        throw new AuthorizationException;
+    }
+
+    /**
+     * Get a validated input container for the validated input.
+     *
+     * @param  array<int, string>|null  $keys
+     * @return ($keys is array ? array<string, mixed> : \Mariner\NutsAndBolts\ValidatedInput)
+     *
+     * @throws \Mariner\Validation\ValidationException
+     */
+    public function safe(?array $keys = null)
+    {
+        return is_array($keys)
+            ? $this->validator->safe()->only($keys)
+            : $this->validator->safe();
+    }
+
+    /**
+     * Get the validated data from the request.
+     *
+     * @param  array|int|string|null  $key
+     * @param  mixed  $default
+     * @return mixed
+     */
+    public function validated($key = null, $default = null)
+    {
+        return data_get($this->validator->validated(), $key, $default);
+    }
+
+    /**
+     * Get custom messages for validator errors.
+     *
+     * @return array<string, string>
+     */
+    public function messages()
+    {
+        return [];
+    }
+
+    /**
+     * Get custom attributes for validator errors.
+     *
+     * @return array<string, string>
+     */
+    public function attributes()
+    {
+        return [];
+    }
+
+    /**
+     * Get the nearest class in the request's hierarchy that applies any of the given attributes.
+     *
+     * @param  array<int, class-string>  $attributes
+     * @param  array<int, string>  $properties
+     * @return \ReflectionClass<\Mariner\Validation\FormRequest>|null
+     */
+    protected function nearestClassWithAttribute(array $attributes, array $properties = [])
+    {
+        $reflection = new ReflectionClass($this);
+
+        do {
+            foreach ($attributes as $attribute) {
+                if ($reflection->getAttributes($attribute) !== []) {
+                    return $reflection;
+                }
+            }
+
+            foreach ($properties as $property) {
+                if ($reflection->hasProperty($property) &&
+                    $reflection->getProperty($property)->class === $reflection->name) {
+                    return null;
+                }
+            }
+        } while (($reflection = $reflection->getParentClass()) && $reflection->name !== self::class);
+
+        return null;
+    }
+
+    /**
+     * Enable or disable unknown-field rejection globally for all form requests.
+     *
+     * @param  bool  $value
+     * @return void
+     */
+    public static function failOnUnknownFields(bool $value = true): void
+    {
+        static::$globalFailOnUnknownFields = $value;
+    }
+
+    /**
+     * Set the Validator instance.
+     *
+     * @param  \Mariner\Contracts\Validation\Validator  $validator
+     * @return $this
+     */
+    public function setValidator(Validator $validator)
+    {
+        $this->validator = $validator;
+
+        return $this;
+    }
+
+    /**
+     * Set the Redirector instance.
+     *
+     * @param  \Mariner\Routing\Redirector  $redirector
+     * @return $this
+     */
+    public function setRedirector(Redirector $redirector)
+    {
+        $this->redirector = $redirector;
+
+        return $this;
+    }
+
+    /**
+     * Set the container implementation.
+     *
+     * @param  \Voyager\Contracts\Vessel\TheServiceContainer  $container
+     * @return $this
+     */
+    public function setContainer(TheServiceContainer $container)
+    {
+        $this->container = $container;
+
+        return $this;
+    }
+
+    /**
+     * Flush the global state of the form request.
+     *
+     * @return void
+     */
+    public static function flushState(): void
+    {
+        static::$globalFailOnUnknownFields = false;
+    }
+}

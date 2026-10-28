@@ -1,0 +1,187 @@
+parameters:
+    level: 5
+    paths:
+        - src
+        - phpstan/TraitConsumers.php
+    treatPhpDocTypesAsCertain: false  # docblock types are not enforced at runtime: the guards they make look redundant stand at trust boundaries, which must stay
+    tmpDir: .phpstan.cache
+    ignoreErrors:
+        # Laravel's factory and fluent APIs return new static() on extendable classes by design; subclasses keep the constructor contract.
+        -
+            identifier: new.static
+            path: src/Mariner/*
+        # The Stringable::toUri macro closure is bound to the Stringable it's called on by Macroable, so $this->value() exists at runtime.
+        -
+            identifier: method.notFound
+            message: '#RoutingServiceProvider::value\(\)#'
+            path: src/Mariner/Routing/RoutingServiceProvider.php
+        # Mailgun and Postmark bridges are suggested packages; MailManager::ensureTransportPackage() fails with an install hint before either is used.
+        -
+            identifier: class.notFound
+            message: '#\bSymfony\\Component\\Mailer\\Bridge\\(Mailgun|Postmark)\\#'
+            path: src/Mariner/Mail/MailManager.php
+        # Framework typing (reported upstream): OffloadedQuery forwards every builder call through __call, without @method tags.
+        -
+            identifier: method.notFound
+            message: '#^Call to an undefined method Voyager\\Database\\IOPools\\OffloadedQuery::#'
+            path: src/Mariner/*
+        # Framework typing (reported upstream): Promise and Arrayable are not @template interfaces yet; serve's docblocks state the resolved type anyway.
+        -
+            identifier: generics.notGeneric
+            message: '#interface Voyager\\Contracts\\(IOPools\\Promise|NutsAndBolts\\Arrayable) is not generic#'
+            path: src/Mariner/*
+        # Framework typing (reported upstream): these Voyager contracts lack methods every bound implementation has (FrameworkCore -> the app, Filesystem -> Filesystem, Cache Repository/Store -> the cache repository and its stores, Wake -> the loop's stream wake, http Response -> the pooled response).
+        -
+            identifier: method.notFound
+            message: '#^Call to an undefined method Voyager\\(Contracts\\Core\\FrameworkCore::(afterResolving|bootstrapPath|getNamespace|terminate)|Contracts\\Filesystem\\Filesystem::(mimeType|via)|Contracts\\Cache\\Repository::(async|lock)|Contracts\\Cache\\Store::(setConnection|setPrefix)|Http\\Client\\Response::wait|Database\\Instrument\\Model::toResource)\(\)#'
+            path: src/Mariner/*
+        -
+            identifier: property.notFound
+            message: '#^Access to an undefined property Voyager\\Contracts\\IOPools\\Wake::\$stream\.#'
+            path: src/Mariner/Core/Server/HttpServer.php
+        # Laravel 13.37 parity: these Mariner contracts mirror Laravel's, which leave out methods the code calls on the one implementation bound for each (SessionGuard, CookieJar, Mailer/Mailable, Store, FileLoader, Validator, View Factory/View/FileViewFinder, Model as UrlRoutable/Authenticatable). Adding them would diverge from Laravel's contracts.
+        -
+            identifier: method.notFound
+            message: '#^Call to an undefined method Mariner\\(Contracts\\Auth\\Factory(\|Mariner\\Contracts\\Auth\\Guard)?::(getDefaultDriver|getRecallerName|hashPasswordForCookie|logoutCurrentDevice|viaRemember)|Contracts\\Auth\\Guard::basic|Contracts\\Auth\\Authenticatable::(forceFill|saveAsync)|Contracts\\Cookie\\(Queueing)?Factory::(queue|hasQueued)|Contracts\\Mail\\Mailable::onQueue|Contracts\\Mail\\Mailer::(later|onPool|queue)|Contracts\\Routing\\UrlRoutable::resolveSoftDeletableRouteBinding|Contracts\\Session\\Session::(async|flashInput|getOldInput|replace)|Contracts\\Translation\\Loader::addPath|Contracts\\Validation\\Validator::(getException|getRulesWithoutPlaceholders|getTranslator|hasRule|safe|setRules|stopOnFirstFailure)|Contracts\\View\\Factory::(first|flushFinderCache|getEngineResolver)|Contracts\\View\\View::getPath|View\\ViewFinderInterface::(getPaths|prependLocation))\(\)#'
+            path: src/Mariner/*
+        -
+            identifier: property.notFound
+            message: '#^Access to an undefined property Mariner\\Contracts\\(Auth\\Authenticatable::\$timestamps|Validation\\Validator::\$(customAttributes|customMessages))\.#'
+            path: src/Mariner/*
+        # Laravel 13.37 parity: the MessageBag contract isn't Stringable, but every bag ViewErrorBag holds is the concrete MessageBag, which is.
+        -
+            identifier: cast.string
+            message: '#^Cannot cast Mariner\\Contracts\\NutsAndBolts\\MessageBag to string\.#'
+            path: src/Mariner/NutsAndBolts/ViewErrorBag.php
+        # Symfony's transports hand over a RawMessage typed message that is always an Email by the time Laravel's transports read it (headers, attachments, address headers).
+        -
+            identifier: method.notFound
+            message: '#^Call to an undefined method Symfony\\Component\\Mime\\(RawMessage::(getAttachments|getHeaders)|Header\\HeaderInterface::setAddresses)\(\)#'
+            path: src/Mariner/Mail/*
+        # Notifications define via()/toMail() by convention, not by an abstract method, as in Laravel; NotificationSender and MailChannel only call them on notifications that do.
+        -
+            identifier: method.notFound
+            message: '#^Call to an undefined method Mariner\\Notifications\\Notification::(via|toMail)\(\)#'
+            path: src/Mariner/Notifications/*
+        # Framework typing (reported upstream): Macroable::macro() doesn't declare @param-closure-this, so a macro closure's $this is typed as the class that defined it, not the class it runs bound to.
+        -
+            identifier: varTag.nativeType
+            message: '#^PHPDoc tag @var with type Mariner\\Http\\Request is not subtype of native type \$this\(Mariner\\Validation\\FormRequestServiceProvider\)\.#'
+            path: src/Mariner/Validation/FormRequestServiceProvider.php
+        # Laravel 13.37 parity: setLaravelSession() always installs a SymfonySessionDecorator, whose public $store is the Mariner session; hasSession() guards it.
+        -
+            identifier: property.notFound
+            message: '#^Access to an undefined property Closure\|Symfony\\Component\\HttpFoundation\\Session\\SessionInterface::\$store\.#'
+            path: src/Mariner/Http/Request.php
+        # Read only after property_exists(static::class, 'preserveKeys'): a resource opts in by declaring the property.
+        -
+            identifier: property.notFound
+            message: '#^Access to an undefined property Mariner\\Http\\Resources\\Json\\JsonResource::\$preserveKeys\.#'
+            path: src/Mariner/Http/Resources/Json/JsonResource.php
+        # Called only when handlerNeedsRequest() saw a CookieSessionHandler, which defines setRequest().
+        -
+            identifier: method.notFound
+            message: '#^Call to an undefined method SessionHandlerInterface::setRequest\(\)#'
+            path: src/Mariner/Session/Store.php
+        # The Resend SDK's Client contract exposes its services through __get without @property tags.
+        -
+            identifier: property.notFound
+            message: '#^Access to an undefined property Resend\\Contracts\\Client::\$emails\.#'
+            path: src/Mariner/Mail/Transport/ResendTransport.php
+        # Framework typing (reported upstream): the Instrument Builder forwards where*() to the query builder through __call and its @mixin types them as returning the query builder, not itself.
+        -
+            identifier: return.type
+            message: '#^Method Mariner\\Notifications\\DatabaseNotification::scope(Read|Unread)\(\) should return Voyager\\Database\\Instrument\\Builder<static\(Mariner\\Notifications\\DatabaseNotification\)> but returns Voyager\\Database\\Query\\Builder\.#'
+            path: src/Mariner/Notifications/DatabaseNotification.php
+        # Framework typing (reported upstream): ControlPanel::make() doesn't map a class-string<T> to T, so make(static::class) reads as the base Component.
+        -
+            identifier: return.type
+            message: '#^Method Mariner\\View\\Component::resolve\(\) should return static\(Mariner\\View\\Component\) but returns Mariner\\View\\Component\.#'
+            path: src/Mariner/View/Component.php
+        # The provider's model is the app's configured user model, which implements Authenticatable; PHPStan can't see that through the configured class string.
+        -
+            identifier: return.type
+            message: '#^Method Mariner\\Auth\\InstrumentUserProvider::retrieveBy(Id|Token|Credentials)\(\) should return \(Mariner\\Contracts\\Auth\\Authenticatable&Voyager\\Database\\Instrument\\Model\)\|null but returns #'
+            path: src/Mariner/Auth/InstrumentUserProvider.php
+        # Laravel 13.37 parity: MailMessage::render() returns an HtmlString (Stringable) so Blade doesn't escape it; Renderable declares string.
+        -
+            identifier: method.childReturnType
+            message: '#^Return type \(Voyager\\NutsAndBolts\\HtmlString\) of method Mariner\\Notifications\\Messages\\MailMessage::render\(\)#'
+            path: src/Mariner/Notifications/Messages/MailMessage.php
+        # Laravel 13.37 parity: EncodedHtmlString holds the raw value it encodes when rendered, where HtmlString holds the finished string.
+        -
+            identifier: property.phpDocType
+            message: '#of property Mariner\\NutsAndBolts\\EncodedHtmlString::\$html is not covariant#'
+            path: src/Mariner/NutsAndBolts/EncodedHtmlString.php
+        # Framework typing (reported upstream): a relation forwards latest() and the related model's local scopes (read/unread) to its builder through __call, untyped, so the chain reads as the builder.
+        -
+            identifier: return.type
+            message: '#::notifications\(\) should return Voyager\\Database\\Instrument\\Relations\\MorphMany<Mariner\\Notifications\\DatabaseNotification, #'
+            path: src/Mariner/Notifications/HasDatabaseNotifications.php
+        -
+            identifier: method.notFound
+            message: '#^Call to an undefined method Voyager\\Database\\Instrument\\Relations\\MorphMany<Mariner\\Notifications\\DatabaseNotification, .+>::(read|unread)\(\)\.#'
+            path: src/Mariner/Notifications/HasDatabaseNotifications.php
+        # Framework typing (reported upstream): Filesystem::exists() isn't marked impure, so the re-check after a failed read (the compiled view removed meanwhile) reads as always false.
+        -
+            identifier: booleanNot.alwaysFalse
+            message: '#^Negated boolean expression is always false\.#'
+            path: src/Mariner/View/Compilers/Compiler.php
+        # compileString() resets the footer, then the regex callbacks it runs (@extends) add to it; PHPStan can't see the callbacks change the property.
+        -
+            identifier: notIdentical.alwaysFalse
+            message: '#^Strict comparison using !== between array\{\} and array\{\} will always evaluate to false\.#'
+            path: src/Mariner/View/Compilers/BladeCompiler.php
+        # The call is dynamic (Assert::$name() and the validate macro), so PHPStan can't see what it throws; both throw the exception caught.
+        -
+            identifier: catch.neverThrown
+            message: '#^Dead catch - PHPUnit\\Framework\\ExpectationFailedException is never thrown in the try block\.#'
+            path: src/Mariner/Testing/TestResponseAssert.php
+        -
+            identifier: catch.neverThrown
+            message: '#^Dead catch - Mariner\\Validation\\ValidationException is never thrown in the try block\.#'
+            path: src/Mariner/Validation/FormRequestServiceProvider.php
+        # Framework typing (reported upstream): Conditionable::when()/unless() type the value as bool and the callbacks as returning the collection's own template, where Laravel takes any value and any callback result.
+        -
+            identifier: argument.type
+            message: '#^Parameter \#[123] \$(value|callback|default) of method Voyager\\NutsAndBolts\\Collection<.+>::when\(\) expects #'
+            path: src/Mariner/*
+        # Framework typing (reported upstream): Arr::first() types \$default as a Closure; like Laravel, it returns any other default as is.
+        -
+            identifier: argument.type
+            message: '#^Parameter \#3 \$default of static method Voyager\\NutsAndBolts\\DataObjects\\Arr::first\(\) expects \(Closure\(\): mixed\)\|null, #'
+            path: src/Mariner/NutsAndBolts/MessageBag.php
+        # Framework typing (reported upstream): JsonEncodingException::forResource() documents a Voyager\Http\Resources\Json\JsonResource class that doesn't exist; the resource is Mariner's.
+        -
+            identifier: argument.type
+            message: '#^Parameter \#1 \$resource of static method Voyager\\Database\\Instrument\\JsonEncodingException::forResource\(\) expects Voyager\\Http\\Resources\\Json\\JsonResource, #'
+            path: src/Mariner/Http/Resources/Json/JsonResource.php
+        # Framework typing (reported upstream): ControlPanel::getInstance() is typed as the container; the instance it holds is the app, a FrameworkCore.
+        -
+            identifier: argument.type
+            message: '#^Parameter \#1 \$app of class Mariner\\Mail\\MailManager constructor expects Voyager\\Contracts\\Core\\FrameworkCore, Voyager\\Vessel\\ControlPanel given\.#'
+            path: src/Mariner/Mail/DeliverMessage.php
+        # Framework typing (reported upstream): Macroable::macro() has no @param-closure-this, so the collection macro's \$this reads as the provider that registers it.
+        -
+            identifier: argument.type
+            message: '#^Parameter \#1 \$items of static method Mariner\\Http\\Resources\\ResourceGuesser::forCollection\(\) expects .+, \$this\(Mariner\\Http\\HttpServiceProvider\) given\.#'
+            path: src/Mariner/Http/HttpServiceProvider.php
+        # Symfony typing: EsmtpTransportFactory::create() is declared to return TransportInterface but builds an EsmtpTransport; the message a transport sends is always a Message (an Email) by then.
+        -
+            identifier: argument.type
+            message: '#^Parameter \#1 \$transport of method Mariner\\Mail\\MailManager::configureSmtpTransport\(\) expects Symfony\\Component\\Mailer\\Transport\\Smtp\\EsmtpTransport, Symfony\\Component\\Mailer\\Transport\\TransportInterface given\.#'
+            path: src/Mariner/Mail/MailManager.php
+        -
+            identifier: argument.type
+            message: '#^Parameter \#1 \$message of static method Symfony\\Component\\Mime\\MessageConverter::toEmail\(\) expects Symfony\\Component\\Mime\\Message, Symfony\\Component\\Mime\\RawMessage given\.#'
+            path: src/Mariner/Mail/Transport/*
+        # Laravel 13.37 parity: view() returns the View contract; the factory serve binds makes Mariner\View\View, which TestView and TestComponent wrap.
+        -
+            identifier: argument.type
+            message: '#^Parameter \#[12] \$view of class Mariner\\Testing\\Test(View|Component) constructor expects Mariner\\View\\View, #'
+            path: src/Mariner/Core/Testing/Concerns/InteractsWithViews.php
+        # The provider's model is the app's configured user model, which implements Authenticatable (as above).
+        -
+            identifier: argument.type
+            message: '#^Parameter \#1 \$retrievedModel of method Mariner\\Auth\\InstrumentUserProvider::modelWithToken\(\) expects Mariner\\Contracts\\Auth\\Authenticatable\|null, Voyager\\Database\\Instrument\\Model\|null given\.#'
+            path: src/Mariner/Auth/InstrumentUserProvider.php
