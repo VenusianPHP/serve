@@ -413,6 +413,8 @@ it('closes its connections when the loop stops right as it drains, the server ob
     $server->drain(5.0)->then(fn () => $this->loop->stop(0));
     $this->loop->run();
 
+    // Blocking, so the read waits up to the timeout for the close instead of returning before the FIN lands.
+    stream_set_blocking($socket, true);
     stream_set_timeout($socket, 2);
     $rest = stream_get_contents($socket);
     $meta = stream_get_meta_data($socket);
