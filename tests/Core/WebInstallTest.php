@@ -60,7 +60,7 @@ it('changes nothing when run again', function () {
 
     expect($status)->toBe(0)
         ->and($after)->toBe($before)
-        ->and(substr_count($output, 'SKIPPED'))->toBe(7);
+        ->and(substr_count($output, 'SKIPPED'))->toBe(8);
 });
 
 it('keeps an edited file unless forced', function () {
@@ -162,4 +162,27 @@ it('never replaces an existing app key, even with --force', function () {
 
     expect(file_get_contents($this->root.'/.env'))->toBe("APP_KEY=base64:keepme\n")
         ->and($output)->toContain('Application key already set');
+});
+
+it('publishes the users migration, which never --force replaces, and migrates', function () {
+    $migration = $this->root.'/database/migrations/0001_01_01_000000_create_users_table.php';
+
+    [$status, $output] = installWeb($this);
+    $published = file_get_contents($migration);
+    file_put_contents($migration, $published."// mine\n");
+    installWeb($this, ['--force' => true]);
+    $kept = file_get_contents($migration);
+    file_put_contents($migration, $published);
+
+    config(['database.default' => 'sqlite', 'database.connections.sqlite.database' => ':memory:']);
+    $migrated = $this->app->make(ConsoleKernel::class)->handle(new ArrayInput(['command' => 'migrate', '--force' => true]), new BufferedOutput);
+
+    expect($status)->toBe(0)
+        ->and($published)->toBe(file_get_contents(dirname(__DIR__, 2).'/database/migrations/0001_01_01_000000_create_users_table.php'))
+        ->and($output)->toContain('database/migrations/0001_01_01_000000_create_users_table.php')
+        ->and($kept)->toEndWith("// mine\n")
+        ->and($migrated)->toBe(0)
+        ->and(app('db.schema')->hasTable('users'))->toBeTrue()
+        ->and(app('db.schema')->hasTable('password_reset_tokens'))->toBeTrue()
+        ->and(app('db.schema')->hasTable('sessions'))->toBeTrue();
 });

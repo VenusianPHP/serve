@@ -14,7 +14,7 @@ class WebInstallCommand extends Command
     protected ?string $signature = 'install:web
                     {--force : Overwrite routes/web.php, routes/api.php, public/index.php and resources/views/welcome.blade.php if they exist}';
 
-    protected string $description = 'Publish the routes, front controller and welcome page, create the session and view storage, and set an app key';
+    protected string $description = 'Publish the routes, front controller, welcome page and users migration, create the session and view storage, and set an app key';
 
     public function __construct(protected Filesystem $files)
     {
@@ -32,6 +32,11 @@ class WebInstallCommand extends Command
 
         foreach ($this->files() as $stub => $to) {
             $failed = ! $this->publish(__DIR__."/stubs/{$stub}.stub", $to) || $failed;
+        }
+
+        // never forced: the app owns its migrations once published, and may have run or edited them
+        foreach ($this->migrations() as $migration) {
+            $failed = ! $this->publish(dirname(__DIR__, 4)."/database/migrations/{$migration}", database_path("migrations/{$migration}"), false) || $failed;
         }
 
         foreach ($this->directories() as $directory) {
@@ -146,17 +151,28 @@ class WebInstallCommand extends Command
     }
 
     /**
-     * Copy the stub to $to unless $to exists and --force was not given.
+     * The migrations serve's auth and database sessions need: users, password_reset_tokens and sessions.
+     *
+     * @return array<int, string>
+     */
+    protected function migrations(): array
+    {
+        return ['0001_01_01_000000_create_users_table.php'];
+    }
+
+    /**
+     * Copy the stub to $to unless $to exists and --force was not given (or $forceable is false).
      *
      * @param  string  $from
      * @param  string  $to
+     * @param  bool  $forceable
      * @return bool  false if the file could not be written
      */
-    protected function publish(string $from, string $to): bool
+    protected function publish(string $from, string $to, bool $forceable = true): bool
     {
         $relative = str_replace(base_path().'/', '', $to);
 
-        if ($this->files->exists($to) && ! $this->option('force')) {
+        if ($this->files->exists($to) && ! ($forceable && $this->option('force'))) {
             $this->components->twoColumnDetail("File [{$relative}] already exists", '<fg=yellow;options=bold>SKIPPED</>');
 
             return true;
