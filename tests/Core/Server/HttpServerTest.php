@@ -243,8 +243,8 @@ it('refuses what it can\'t accept with the status for it, then closes', function
     'too large a body' => ["POST / HTTP/1.1\r\nHost: h\r\nContent-Length: 2000\r\n\r\n", 413, ['body' => 1000]],
 ]);
 
-it('answers one request at a time by default, in arrival order', function () {
-    $server = serving($this);
+it('answers one request at a time with max_in_flight 1, in arrival order', function () {
+    $server = serving($this, ['max_in_flight' => 1]);
     $order = [];
     $this->app['router']->get('/slow/{n}', function (string $n) use (&$order) {
         $order[] = "start {$n}";
@@ -263,6 +263,158 @@ it('answers one request at a time by default, in arrival order', function () {
     exchange($this->loop, $two, '');
 
     expect($order)->toBe(['start 1', 'end 1', 'start 2', 'end 2']);
+});
+
+it('answers several requests at once by default, each in its own loop task', function () {
+    $server = serving($this);
+    $order = [];
+    $this->app['router']->get('/slow/{n}', function (string $n) use (&$order) {
+        $order[] = "start {$n}";
+        LoopPause::yield();
+        LoopPause::yield();
+        $order[] = "end {$n}";
+
+        return $n;
+    });
+
+    $one = clientOf($server);
+    $two = clientOf($server);
+    fwrite($one, "GET /slow/1 HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n");
+    fwrite($two, "GET /slow/2 HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n");
+    exchange($this->loop, $one, '');
+    exchange($this->loop, $two, '');
+
+    expect($server->options->max_in_flight)->toBe(10)
+        ->and($order)->toBe(['start 1', 'start 2', 'end 1', 'end 2']);
+});
+
+it('lets a request wait for another request to answer it', function () {
+    $server = serving($this);
+    $released = false;
+    $this->app['router']->get('/wait', function () use (&$released) {
+        while (! $released) {
+            LoopPause::yield();
+        }
+
+        return 'released';
+    });
+    $this->app['router']->get('/release', function () use (&$released) {
+        $released = true;
+
+        return 'ok';
+    });
+
+    $waiting = clientOf($server);
+    fwrite($waiting, "GET /wait HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n");
+    $release = exchange($this->loop, clientOf($server), "GET /release HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n");
+    $wait = exchange($this->loop, $waiting, '');
+
+    expect(parsedAnswer($release)[2])->toBe('ok')
+        ->and(parsedAnswer($wait)[2])->toBe('released');
+});
+
+/** Turn $loop until $done says so, or $timeout passes. */
+function turnUntil($loop, Closure $done, float $timeout = 5.0): void
+{
+    $deadline = microtime(true) + $timeout;
+    $name = 'test.turn.'.random_int(0, PHP_INT_MAX);
+    $pace = $loop->every(0.001, fn () => null, $name);
+
+    try {
+        $loop->until(fn () => $done() || microtime(true) > $deadline);
+    } finally {
+        $pace->cancel();
+        $loop->forget($name);
+    }
+}
+
+it('cancels a stream whose client hangs up, running its finally and freeing its place', function () {
+    $server = serving($this, ['max_in_flight' => 1]);
+    $events = 0;
+    $unwound = false;
+    $this->app['router']->get('/forever', function () use (&$events, &$unwound) {
+        return new StreamedResponse(function () use (&$events, &$unwound) {
+            try {
+                while (true) {
+                    echo 'tick';
+                    $events++;
+                    LoopPause::yield();
+                }
+            } finally {
+                $unwound = true;
+            }
+        });
+    });
+
+    $gone = clientOf($server);
+    fwrite($gone, "GET /forever HTTP/1.1\r\nHost: h\r\n\r\n");
+    turnUntil($this->loop, function () use (&$events) { return $events >= 3; });
+    fclose($gone);
+    turnUntil($this->loop, function () use (&$unwound) { return $unwound; });
+
+    // max_in_flight is 1: the stream's place is free again only if it was let go
+    $answer = exchange($this->loop, clientOf($server), "GET /up HTTP/1.1\r\nHost: h\r\nConnection: close\r\n\r\n");
+
+    expect($unwound)->toBeTrue()
+        ->and(parsedAnswer($answer)[0])->toBe(200);
+});
+
+it('cancels a request waiting on the loop when its client hangs up, as 499, reporting nothing', function () {
+    $server = serving($this);
+    $reported = [];
+    $this->app->registerInstance(ExceptionHandler::class, new class($reported) implements ExceptionHandler {
+        public function __construct(private array &$reported) {}
+
+        public function report(Throwable $e): void
+        {
+            $this->reported[] = $e->getMessage();
+        }
+
+        public function shouldReport(Throwable $e): bool
+        {
+            return true;
+        }
+
+        public function renderForConsole(OutputInterface $output, Throwable $e): void {}
+    });
+    $seen = [];
+    $server->onRequest(function (ServedRequest $served) use (&$seen) {
+        $seen[] = [$served->path, $served->status];
+    });
+    $waiting = false;
+    $this->app['router']->get('/wait', function () use (&$waiting) {
+        $waiting = true;
+
+        while (true) {
+            LoopPause::yield();
+        }
+    });
+
+    $gone = clientOf($server);
+    fwrite($gone, "GET /wait HTTP/1.1\r\nHost: h\r\n\r\n");
+    turnUntil($this->loop, function () use (&$waiting) { return $waiting; });
+    fclose($gone);
+    turnUntil($this->loop, function () use (&$seen) { return $seen !== []; });
+
+    expect($seen)->toBe([['/wait', 499]])
+        ->and($reported)->toBe([]);
+});
+
+it('holds a pipelined request back unparsed while one is answered, so a bad one can\'t cut into it', function () {
+    $server = serving($this);
+    $this->app['router']->get('/slow', function () {
+        LoopPause::yield();
+        LoopPause::yield();
+
+        return 'whole';
+    });
+
+    $answer = exchange($this->loop, clientOf($server), "GET /slow HTTP/1.1\r\nHost: h\r\n\r\nGET / HTTP/1.1\r\nHost: h\r\nX-Bad : v\r\n\r\n");
+    $first = substr($answer, 0, strpos($answer, 'whole') + 5);
+
+    expect(parsedAnswer($first)[0])->toBe(200)
+        ->and(parsedAnswer($first)[2])->toBe('whole')
+        ->and(substr($answer, strlen($first)))->toStartWith('HTTP/1.1 400 ');
 });
 
 it('keeps output the app writes outside its response out of the response, and reports it', function () {

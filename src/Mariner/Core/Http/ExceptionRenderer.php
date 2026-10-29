@@ -27,6 +27,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Throwable;
+use Voyager\Contracts\IOPools\CancelledException;
 use Voyager\NutsAndBolts\Collection;
 use Voyager\Contracts\Debug\ExceptionHandler;
 use Voyager\Contracts\Vessel\TheServiceContainer;
@@ -122,6 +123,11 @@ class ExceptionRenderer implements ExceptionRendererContract
 
     public function handle(Request $request, Throwable $e): SymfonyResponse
     {
+        // A cancelled request isn't a failure to render: its client is gone, so it unwinds to the server.
+        if ($e instanceof CancelledException) {
+            throw $e;
+        }
+
         $this->report($e);
 
         try {

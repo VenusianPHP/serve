@@ -5,7 +5,7 @@ description: Interface groups for Mariner web components.
 resource: src/Mariner/Contracts/Auth/Factory.php
 tags: [contracts, interfaces]
 status: draft
-generated: { by: claude-opus-5-5, at: 2026-10-27T00:00:00Z }
+generated: { by: claude-sonnet-5-5/claude-code, at: 2026-10-28T00:00:00Z }
 sources:
   - id: auth
     resource: src/Mariner/Contracts/Auth/Factory.php
@@ -28,11 +28,17 @@ sources:
   - id: view
     resource: src/Mariner/Contracts/View/Factory.php
     title: View\Factory
+  - id: server
+    resource: src/Mariner/Contracts/Server/HttpServer.php
+    title: Server\HttpServer
+  - id: server-tests
+    resource: tests/Core/Server/HttpServerContractTest.php
+    title: The HttpServer contract resolved, attached and drained
 ---
 
 # Overview
 
-Namespace `Mariner\Contracts\*`: interfaces only, no service provider or facade. Voyager imports: `Voyager\Contracts\NutsAndBolts\Arrayable`, `Voyager\Contracts\Queue\Factory`. Groups (file count):
+Namespace `Mariner\Contracts\*`: interfaces only, no service provider or facade. Voyager imports: `Voyager\Contracts\NutsAndBolts\Arrayable`, `Voyager\Contracts\Queue\Factory`, and `Voyager\Contracts\IOPools\Loop` and `Promise` for `Server\HttpServer`. Groups (file count):
 
 - `Auth` (12): Authenticatable, CanResetPassword, Factory, Guard, StatefulGuard, SupportsBasicAuth, UserProvider, MustVerifyEmail, PasswordBroker, PasswordBrokerFactory, `Access\Gate`, `Middleware\AuthenticatesRequests`[^auth].
 - `Cookie` (2): Factory, QueueingFactory[^cookie].
@@ -41,6 +47,7 @@ Namespace `Mariner\Contracts\*`: interfaces only, no service provider or facade.
 - `Mail` (5): Attachable, Factory, MailQueue, Mailable, Mailer. `Notifications` (2): Dispatcher, Factory.
 - `NutsAndBolts` (5): MessageBag, MessageProvider, Renderable, Responsable, ValidatedData.
 - `Routing` (5): BindingRegistrar, Registrar, ResponseFactory, UrlGenerator, UrlRoutable[^routing].
+- `Server` (1): HttpServer (`listen`, `port`, `attach`, `onRequest`, `stop`, `drain`), which `Mariner\Core\Server\HttpServer` implements. It lets a package serve over HTTP without naming `Mariner\Core`, which ships only in `venusian/serve`; the container binds it to the same factory as the class, and the `options` parameter takes plain config keys laid over `config/serve.php`[^server][^server-tests].
 - `Session` (2): Session, `Middleware\AuthenticatesSessions`[^session].
 - `Translation` (3): HasLocalePreference, Loader, Translator.
 - `Validation` (11): CompilableRules, DataAwareRule, Factory, ImplicitRule, InvokableRule, ParameterizedRule, Rule, UncompromisedVerifier, ValidationRule, Validator, ValidatorAwareRule[^validation].
@@ -53,3 +60,5 @@ Namespace `Mariner\Contracts\*`: interfaces only, no service provider or facade.
 [^routing]: Routing\UrlGenerator
 [^validation]: Validation\Validator
 [^view]: View\Factory
+[^server]: Server\HttpServer
+[^server-tests]: The HttpServer contract resolved, attached and drained

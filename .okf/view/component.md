@@ -5,7 +5,7 @@ description: View factory, finder, engines and the Blade compiler.
 resource: src/Mariner/View/Factory.php
 tags: [view, blade, templating]
 status: draft
-generated: { by: claude-opus-5-5, at: 2026-10-27T00:00:00Z }
+generated: { by: claude-opus-5-5, at: 2026-10-28T00:00:00Z }
 sources:
   - id: provider
     resource: src/Mariner/View/ViewServiceProvider.php
@@ -28,6 +28,9 @@ sources:
   - id: view-helpers
     resource: src/Mariner/View/helpers.php
     title: View helpers
+  - id: fiber-buffers
+    resource: tests/View/FiberOutputBuffersTest.php
+    title: FiberOutputBuffers tests
 ---
 
 # Overview
@@ -41,6 +44,8 @@ Voyager imports: Voyager\Contracts\{Core,NutsAndBolts,Signals,Vessel}, Voyager\D
 Config keys: `view.paths`, `view.compiled`, `view.relative_hash`, `view.cache`, `view.compiled_extension`, `view.check_cache_timestamps` (ViewServiceProvider.php:85-103); `view.compiled` also Component.php:200.[^provider][^component]
 
 `Vite` (with `ViteFonts`, `ViteException`, `ViteManifestNotFoundException`) builds asset tags from the Vite manifest; the `Vite` facade resolves `Mariner\View\Vite::class`. View's `helpers.php` defines `view()` and `method_field()`, each behind `function_exists`.[^vite][^view-helpers]
+
+`FiberOutputBuffers` gives each loop fiber its own output buffers: a suspending fiber's buffers come off PHP's one stack and are parked with it, and go back on when it resumes (by resumption, a throw or a cancel). A buffer opened through `start()` keeps its callback across suspends. A fiber torn down while suspended (its loop or the process gone) runs its `finally` with its buffers still parked, so `end()` leaves the stack alone rather than pop a buffer that isn't its own.[^fiber-buffers]
 
 # Console
 
@@ -57,3 +62,4 @@ Config keys: `view.paths`, `view.compiled`, `view.relative_hash`, `view.cache`, 
 [^facade-blade]: Blade
 [^vite]: Vite
 [^view-helpers]: View helpers
+[^fiber-buffers]: FiberOutputBuffers tests

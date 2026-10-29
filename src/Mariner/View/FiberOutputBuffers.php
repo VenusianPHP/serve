@@ -27,10 +27,17 @@ final class FiberOutputBuffers
      */
     private static ?WeakMap $handlers = null;
 
+    /**
+     * The buffers each suspended fiber took off the stack, until it resumes.
+     *
+     * @var WeakMap<Fiber, list<array<string, mixed>>>|null
+     */
+    private static ?WeakMap $parked = null;
+
     public static function register(EventLoop $loop): void
     {
         $base = new WeakMap;
-        $parked = new WeakMap;
+        $parked = self::$parked ??= new WeakMap;
 
         $loop->onFiberStart(function (Fiber $fiber) use ($base) {
             $base[$fiber] = ob_get_level();
@@ -96,9 +103,17 @@ final class FiberOutputBuffers
     public static function end(): void
     {
         $level = ob_get_level();
+        $fiber = Fiber::getCurrent();
+
+        // Running with its buffers still parked: the fiber is being torn down while suspended (its loop
+        // or the process went away) and never resumed, so what is on the stack now isn't its own.
+        if (! is_null($fiber) && isset(self::$parked[$fiber])) {
+            return;
+        }
+
         ob_end_flush();
 
-        if (! is_null($fiber = Fiber::getCurrent()) && isset(self::$handlers[$fiber])) {
+        if (! is_null($fiber) && isset(self::$handlers[$fiber])) {
             $handlers = self::$handlers[$fiber];
             unset($handlers[$level]);
             self::$handlers[$fiber] = $handlers;

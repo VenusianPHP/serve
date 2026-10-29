@@ -5,7 +5,7 @@ description: "php computer serve and HttpServer: an HTTP/1.1 server attached to 
 resource: src/Mariner/Core/Server
 tags: [core, server, serve, http1, workers, threads]
 status: draft
-generated: { by: claude-code/claude-opus-5-5, at: 2026-10-27T00:00:00Z }
+generated: { by: claude-sonnet-5-5/claude-code, at: 2026-10-28T00:00:00Z }
 sources:
   - id: parser
     resource: git:4e2090e
@@ -22,6 +22,18 @@ sources:
   - id: workers
     resource: git:e5643c7
     title: Drain on the first stop signal, and run several workers on Linux
+  - id: inflight
+    resource: tests/Core/Server/HttpServerTest.php
+    title: Several requests at once by default, on every OS
+  - id: contract
+    resource: src/Mariner/Contracts/Server/HttpServer.php
+    title: Server\HttpServer, the contract
+  - id: contract-tests
+    resource: tests/Core/Server/HttpServerContractTest.php
+    title: The HttpServer contract resolved, attached and drained
+  - id: cancel
+    resource: tests/Core/Server/HttpServerTest.php
+    title: A client that hangs up cancels its request
   - id: sketch
     resource: tests/Core/SketchServeTest.php
     title: Serving from a sketch (Rocket end-to-end tests)
@@ -32,7 +44,9 @@ sources:
 
 # Overview
 
-`Mariner\Core\Server\HttpServer` serves an app over HTTP/1.1 on an event loop it is given and never owns: `listen()`, `attach($loop)`, `stop()`, `drain($timeout)` (a promise), `onRequest()` for observers. Its listener and connections are one loop resource under a name of its own, so two servers share a loop and a running app (a sketch) can attach one mid-run. Each request runs in its own loop task and fresh scope through `Mariner\Core\Http\Kernel`. Nothing process-wide happens in it: signals, console output and workers belong to whoever runs it.[^server]
+`Mariner\Core\Server\HttpServer` serves an app over HTTP/1.1 on an event loop it is given and never owns: `listen()`, `attach($loop)`, `stop()`, `drain($timeout)` (a promise), `onRequest()` for observers. Its listener and connections are one loop resource under a name of its own, so two servers share a loop and a running app (a sketch) can attach one mid-run. Each request runs in its own loop task and fresh scope through `Mariner\Core\Http\Kernel`. Up to `max_in_flight` of them (10 by default, on every OS) run at once, so a held stream or a request waiting on another's answer doesn't stop the rest; 1 answers them one at a time in arrival order.[^inflight] A connection is still read while its request is answered, so a client that hangs up is seen (or the next write fails): the request's task is cancelled, `CancelledException` lands where the handler waits, its `finally` runs, its place is freed and observers see status 499. `ExceptionRenderer::handle()` rethrows that exception rather than reporting or rendering it. Bytes a client sends meanwhile (a pipelined request) stay unparsed until their turn, up to 64 KiB, so a refusal can't cut into the answer being sent.[^cancel] Nothing process-wide happens in it: signals, console output and workers belong to whoever runs it.[^server]
+
+It implements `Mariner\Contracts\Server\HttpServer`, which declares `listen()`, `port()`, `attach($loop)`, `onRequest()`, `stop()` and `drain()` and nothing else (`wakes()`, `woke()` and `maxConnections()` stay with the loop and the options), so a package in the `venusian-mariner/contracts` split can serve without requiring `venusian/serve`. The container binds the contract to the same factory as the class.[^contract]
 
 `Http1\Parser` reads requests as bytes arrive and refuses the framing ambiguities request smuggling relies on, with a status for each limit.[^parser] `RequestFactory` and `Http1\Multipart` build the Mariner request as PHP's SAPI would; uploads are framework `UploadedFile`s in test mode, which is safe only because every path is a temporary file the server created, never client input.[^requests]
 
@@ -46,7 +60,7 @@ Before the app, the server answers `serve.health` (`/up`, `OK`) and, with `serve
 
 # Serving from a sketch
 
-A running sketch (a `php rocket` app, a venusian/build binary) serves its own app over HTTP on its own loop: the container makes an `HttpServer` for this app (`config/serve.php`, or `make(HttpServer::class, ['options' => new ServerOptions(...)])`), and the routes, services and state are the sketch's, with no second boot. The sketch decides when the server starts and stops; requests run in their own scope, so the sketch's own scoped instances are untouched.[^sketch]
+A running sketch (a `php rocket` app, a venusian/build binary) serves its own app over HTTP on its own loop: the container makes an `HttpServer` for this app (`config/serve.php`, or `make(HttpServer::class, ['options' => new ServerOptions(...)])`; a package that cannot name `Mariner\Core` makes `Mariner\Contracts\Server\HttpServer` with `['options' => ['port' => 0]]`, and the keys are laid over `config/serve.php` through `ServerOptions::fromConfig()`[^contract-tests]), and the routes, services and state are the sketch's, with no second boot. The sketch decides when the server starts and stops; requests run in their own scope, so the sketch's own scoped instances are untouched.[^sketch]
 
 ```php
 use Mariner\Core\Server\HttpServer;
@@ -134,5 +148,9 @@ Nothing a request changes outlives it. Mariner's static properties are boot-time
 [^requests]: Build Mariner requests from requests off the wire
 [^command]: Add php computer serve
 [^workers]: Drain on the first stop signal, and run several workers on Linux
+[^inflight]: Several requests at once by default, on every OS
+[^contract]: Server\HttpServer, the contract
+[^contract-tests]: The HttpServer contract resolved, attached and drained
+[^cancel]: A client that hangs up cancels its request
 [^sketch]: Serving from a sketch (Rocket end-to-end tests)
 [^php-env-lock]: php-src PHP-8.4 basic_functions.c (php_getenv, PHP_FUNCTION(putenv))

@@ -4,6 +4,7 @@ namespace Mariner\Core\Server;
 
 use Closure;
 use LogicException;
+use Mariner\Contracts\Server\HttpServer as HttpServerContract;
 use Mariner\Core\Http\Kernel;
 use Mariner\Core\Server\Http1\HttpError;
 use Mariner\Core\Server\Http1\ParsedRequest;
@@ -17,6 +18,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 use Voyager\Contracts\Core\FrameworkCore;
 use Voyager\Contracts\Debug\ExceptionHandler;
+use Voyager\Contracts\IOPools\CancelledException;
 use Voyager\Contracts\IOPools\Loop;
 use Voyager\Contracts\IOPools\LoopResources\Timer;
 use Voyager\Contracts\IOPools\LoopResources\Wakeable;
@@ -33,7 +35,7 @@ use Voyager\IOPools\Waiter\Wakes\Writable;
  * Nothing process-wide happens here: no signals, no console output, no workers. Whatever runs the
  * server (the serve command, a sketch) decides those; onRequest() tells it about each request.
  */
-final class HttpServer implements Wakeable
+final class HttpServer implements HttpServerContract, Wakeable
 {
     /** @var resource|null */
     private $listener = null;
@@ -80,7 +82,7 @@ final class HttpServer implements Wakeable
      *
      * @throws RuntimeException  the address can't be listened on
      */
-    public function listen(): self
+    public function listen(): static
     {
         if (! is_null($this->listener)) {
             return $this;
@@ -114,7 +116,7 @@ final class HttpServer implements Wakeable
     }
 
     /** Serve on $loop, from its next turn. */
-    public function attach(Loop $loop): self
+    public function attach(Loop $loop): static
     {
         if (! is_null($this->loop)) {
             throw new LogicException('This server is already attached to a loop.');
@@ -130,7 +132,7 @@ final class HttpServer implements Wakeable
     }
 
     /** Tell $observer about each request once it is answered. */
-    public function onRequest(Closure $observer): self
+    public function onRequest(Closure $observer): static
     {
         $this->observers[] = $observer;
 
@@ -273,7 +275,14 @@ final class HttpServer implements Wakeable
             if (! is_null($request = $connection->next($this->options->max_buffered))) {
                 $this->in_flight++;
                 $connection->busy = true;
-                $this->loop->async(fn () => $this->serve($connection, $request));
+                $connection->serving = $request;
+                $task = $this->loop->async(fn () => $this->serve($connection, $request));
+
+                // async() runs the request until it first waits: it may have finished, and the next
+                // one begun, before the task comes back. Only a request still being answered keeps it.
+                if ($connection->serving === $request) {
+                    $connection->task = $task;
+                }
             }
         }
     }
@@ -318,13 +327,16 @@ final class HttpServer implements Wakeable
             $status = $response->getStatusCode();
             $this->send($connection, $parsed, $response, $request);
             $this->terminate($kernel, $request, $response);
+        } catch (CancelledException) {
+            // The client went away mid-request (or the drain deadline passed): nobody to answer.
+            $status = 499;
         } finally {
             foreach ($factory->uploads() as $path) {
                 @unlink($path);
             }
 
             $this->in_flight--;
-            $connection->busy = false;
+            [$connection->busy, $connection->serving, $connection->task] = [false, null, null];
 
             foreach ($this->observers as $observer) {
                 $observer(new ServedRequest($parsed->method, strtok($parsed->target, '?'), $status, microtime(true) - $began));
@@ -503,11 +515,13 @@ final class HttpServer implements Wakeable
         $this->detachWhenDone();
     }
 
+    /** Release the connection, and cancel the request it was answering: its handler's finally runs now. */
     private function close(Connection $connection): void
     {
         unset($this->connections[(int) $connection->stream]);
         $connection->release();
         $this->closing[] = $connection->stream;
+        $connection->task?->cancel();
     }
 
     /** Once stopped with nothing left to answer, leave the loop. */

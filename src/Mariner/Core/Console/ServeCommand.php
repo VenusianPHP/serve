@@ -28,7 +28,7 @@ class ServeCommand extends Command
     protected ?string $signature = 'serve
                     {--host= : The address to listen on (config serve.host)}
                     {--port= : The port to listen on (config serve.port)}
-                    {--max-in-flight= : Requests handled at once; above 1 needs Linux (config serve.max_in_flight)}
+                    {--max-in-flight= : Requests handled at once (config serve.max_in_flight)}
                     {--workers= : Workers sharing the port; above 1 needs Linux (config serve.workers)}
                     {--driver=auto : How workers run: process, thread, or auto (threads where this PHP runs them, else processes). A PHP fatal error in a thread worker ends the whole server; process workers contain it}
                     {--https : Serve as behind a proxy that terminates TLS}';

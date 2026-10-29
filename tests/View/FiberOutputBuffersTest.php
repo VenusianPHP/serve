@@ -103,6 +103,29 @@ it('forgets a callback buffer its owner ended before suspending', function () {
         ->and($sink)->toBe(['streamed']);
 });
 
+it('leaves the stack alone when a fiber suspended inside start() is torn down without resuming', function () {
+    // PHP tears suspended fibers down at exit, after it has ended every output buffer: the fiber's
+    // finally then runs with its buffer parked, and end() must not pop what isn't its own.
+    $script = tempnam(sys_get_temp_dir(), 'fob').'.php';
+    file_put_contents($script, '<?php
+        require '.var_export(dirname(__DIR__, 2).'/vendor/autoload.php', true).';
+        use Mariner\View\FiberOutputBuffers;
+        $registry = new Voyager\IOPools\ResourceRegistry();
+        $loop = new Voyager\IOPools\EventLoop($registry, new Voyager\IOPools\LoopWaiter($registry, new Voyager\IOPools\Waiter\StreamSelectWaiterBackend(), 1_000_000), new Voyager\IOPools\PromiseEngines\GuzzlePromiseEngine());
+        FiberOutputBuffers::register($loop);
+        $loop->async(function () use ($loop) {
+            FiberOutputBuffers::start(fn (string $bytes) => "", 1);
+            try { $loop->until(fn () => false); } finally { FiberOutputBuffers::end(); echo "unwound"; }
+        });
+    ');
+
+    exec(escapeshellarg(PHP_BINARY).' -d display_errors=stderr '.escapeshellarg($script).' 2>&1', $output, $status);
+    @unlink($script);
+
+    expect($status)->toBe(0)
+        ->and(implode("\n", $output))->toBe('unwound');
+});
+
 it('is a plain ob_start with a callback outside a loop fiber', function () {
     $sink = [];
 

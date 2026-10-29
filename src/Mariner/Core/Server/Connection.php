@@ -6,6 +6,7 @@ use Mariner\Core\Server\Http1\HttpError;
 use Mariner\Core\Server\Http1\Limits;
 use Mariner\Core\Server\Http1\ParsedRequest;
 use Mariner\Core\Server\Http1\Parser;
+use Voyager\Contracts\IOPools\Task;
 
 /**
  * One client's socket: bytes in through the parser, one request answered at a time (pipelined
@@ -56,13 +57,21 @@ final class Connection
         $this->last_activity = $this->last_write = microtime(true);
     }
 
+    /** The request being answered, while it is: its task is cancelled when the client goes. */
+    public ?ParsedRequest $serving = null;
+
+    public ?Task $task = null;
+
     /**
      * Whether to read more: not while a request waits, nor once the connection is ending, nor while
-     * more than $max_buffered bytes of answers wait for a client that isn't reading them.
+     * more than $max_buffered bytes of answers wait for a client that isn't reading them. While a
+     * request is answered, reading goes on (so a client that hangs up is seen) until READ bytes of
+     * what follows are held back unparsed.
      */
     public function wantsRead(int $max_buffered): bool
     {
-        return ! $this->closed && ! $this->closing && ! $this->busy && $this->waiting === [] && $this->buffered <= $max_buffered;
+        return ! $this->closed && ! $this->closing && $this->waiting === [] && $this->buffered <= $max_buffered
+            && (! $this->busy || $this->parser->pending() < self::READ);
     }
 
     public function buffered(): int
@@ -96,7 +105,12 @@ final class Connection
 
         $this->last_activity = microtime(true);
         $this->parser->push($bytes);
-        $this->parse();
+
+        // While a request is answered, what follows stays unparsed until its turn: a refusal now
+        // would cut into the answer being sent.
+        if (! $this->busy) {
+            $this->parse();
+        }
 
         return true;
     }
@@ -146,6 +160,15 @@ final class Connection
 
     public function queue(string|FileBody $bytes): void
     {
+        // Released: the client is gone, and nothing will write this.
+        if ($this->closed) {
+            if ($bytes instanceof FileBody) {
+                $bytes->close();
+            }
+
+            return;
+        }
+
         if ($bytes === '') {
             return;
         }

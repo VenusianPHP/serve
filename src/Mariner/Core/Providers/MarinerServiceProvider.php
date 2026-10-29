@@ -15,6 +15,7 @@ use Mariner\Core\Http\ExceptionRenderer;
 use Mariner\Testing\LoggedExceptionCollection;
 use Voyager\Log\Signals\MessageLogged;
 use Mariner\Core\Http\Kernel;
+use Mariner\Contracts\Server\HttpServer as HttpServerContract;
 use Mariner\Core\Server\HttpServer;
 use Mariner\Core\Server\ServerOptions;
 use Mariner\Http\HttpServiceProvider;
@@ -116,10 +117,21 @@ class MarinerServiceProvider extends AggregateServiceProvider
         $this->app->registerSingleton(Kernel::class);
 
         // A new server each time, on this app: `serve` makes one, and so may a running sketch, to
-        // attach to its own loop. make(HttpServer::class, ['options' => ...]) overrides config/serve.php.
-        $this->app->bind(HttpServer::class, fn ($app, array $parameters = []) => new HttpServer(
-            $app, $parameters['options'] ?? ServerOptions::fromConfig((array) $app['config']->get('serve', [])),
-        ));
+        // attach to its own loop. make(HttpServer::class, ['options' => ...]) overrides config/serve.php,
+        // with a ServerOptions or with config keys laid over it; the contract makes the same server, so a
+        // package that cannot name Mariner\Core passes ['port' => 0].
+        $server = function ($app, array $parameters = []) {
+            $config = (array) $app['config']->get('serve', []);
+            $options = $parameters['options'] ?? null;
+
+            return new HttpServer($app, match (true) {
+                $options instanceof ServerOptions => $options,
+                is_array($options) => ServerOptions::fromConfig(array_replace_recursive($config, $options)),
+                default => ServerOptions::fromConfig($config),
+            });
+        };
+        $this->app->bind(HttpServer::class, $server);
+        $this->app->bind(HttpServerContract::class, $server);
 
         // Computer resolves commands through the container, so each one is bound before it's listed.
         $this->app->registerSingleton(WebInstallCommand::class, fn ($app) => new WebInstallCommand($app['files']));

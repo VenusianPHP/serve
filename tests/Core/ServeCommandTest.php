@@ -93,12 +93,12 @@ it('answers the request in flight on SIGTERM before it stops', function () {
         ->and($output)->toContain('Stopping: answering the requests in flight.');
 })->skip(! function_exists('pcntl_signal') || ! function_exists('posix_kill'), 'needs pcntl and posix to signal itself');
 
-it('refuses more than one request in flight off Linux, saying why', function () {
-    [$status, $output] = runServe($this->app, ['--port' => freePort(), '--max-in-flight' => 2]);
+it('refuses fewer than one request in flight, saying why', function () {
+    [$status, $output] = runServe($this->app, ['--port' => freePort(), '--max-in-flight' => 0]);
 
     expect($status)->toBe(1)
-        ->and($output)->toContain('max_in_flight above 1 needs Linux');
-})->skip(PHP_OS_FAMILY === 'Linux', 'Linux runs more than one request in flight');
+        ->and($output)->toContain('max_in_flight must be at least 1.');
+});
 
 it('says what is wrong when it cannot listen', function () {
     $taken = stream_socket_server('tcp://127.0.0.1:0');

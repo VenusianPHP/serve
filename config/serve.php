@@ -8,8 +8,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | Where the server listens, and how much it takes on. max_in_flight is how
-    | many requests one worker handles at once: 1 by default, above 1 only on
-    | Linux. Set https when serving behind a proxy that terminates TLS. The
+    | many requests one worker handles at once, each in its own loop task.
+    | Set https when serving behind a proxy that terminates TLS. The
     | health path answers 200 without the app; null turns it off.
     |
     */
@@ -18,7 +18,7 @@ return [
 
     'port' => (int) env('SERVE_PORT', 8020),
 
-    'max_in_flight' => (int) env('SERVE_MAX_IN_FLIGHT', 1),
+    'max_in_flight' => (int) env('SERVE_MAX_IN_FLIGHT', 10),
 
     // Worker processes sharing the port, balanced by the kernel: above 1 only on Linux.
     'workers' => (int) env('SERVE_WORKERS', 1),

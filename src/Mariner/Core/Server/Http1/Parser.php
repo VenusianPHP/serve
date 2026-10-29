@@ -48,6 +48,12 @@ final class Parser
         $this->buffer .= $bytes;
     }
 
+    /** Bytes pushed and not yet taken as part of a request. */
+    public function pending(): int
+    {
+        return strlen($this->buffer);
+    }
+
     /**
      * Whether the request being read asked for "100 Continue" before sending its body. True
      * once per request: the connection writes the interim response when it sees it.

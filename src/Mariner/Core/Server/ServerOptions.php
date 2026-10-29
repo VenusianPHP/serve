@@ -12,8 +12,8 @@ final readonly class ServerOptions
         public string $host = '127.0.0.1',
         /** 0 lets the system pick a free port: HttpServer::port() says which. */
         public int $port = 8020,
-        /** Requests handled at once. Above 1 only on Linux. */
-        public int $max_in_flight = 1,
+        /** Requests handled at once, each in its own loop task. */
+        public int $max_in_flight = 10,
         public Limits $limits = new Limits,
         /** Seconds a client may take to send a request's line and headers: then 408. */
         public float $header_timeout = 30.0,
@@ -54,10 +54,6 @@ final readonly class ServerOptions
             throw new InvalidArgumentException('max_in_flight must be at least 1.');
         }
 
-        if ($max_in_flight > 1 && PHP_OS_FAMILY !== 'Linux') {
-            throw new InvalidArgumentException("max_in_flight above 1 needs Linux; this is ".PHP_OS_FAMILY.'.');
-        }
-
         if ($reuse_port && PHP_OS_FAMILY !== 'Linux') {
             throw new InvalidArgumentException('Sharing a port between workers (SO_REUSEPORT balancing) needs Linux; this is '.PHP_OS_FAMILY.'.');
         }
@@ -92,7 +88,7 @@ final readonly class ServerOptions
         return new self(
             host: (string) ($config['host'] ?? '127.0.0.1'),
             port: (int) ($config['port'] ?? 8020),
-            max_in_flight: (int) ($config['max_in_flight'] ?? 1),
+            max_in_flight: (int) ($config['max_in_flight'] ?? 10),
             limits: new Limits(
                 request_line: (int) ($config['limits']['request_line'] ?? 8_192),
                 header_bytes: (int) ($config['limits']['header_bytes'] ?? 16_384),
