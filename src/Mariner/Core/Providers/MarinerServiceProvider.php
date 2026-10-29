@@ -157,6 +157,9 @@ class MarinerServiceProvider extends AggregateServiceProvider
 
         $this->publishes($published, 'mariner-config');
 
+        // the package's migrations are undated and never run from here: the app publishes them, with its own prefix
+        $this->publishes(WebInstallCommand::migrations(), 'mariner-migrations');
+
         $this->registerExceptionTracking();
     }
 

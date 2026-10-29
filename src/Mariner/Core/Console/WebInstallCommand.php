@@ -35,8 +35,8 @@ class WebInstallCommand extends Command
         }
 
         // never forced: the app owns its migrations once published, and may have run or edited them
-        foreach ($this->migrations() as $migration) {
-            $failed = ! $this->publish(dirname(__DIR__, 4)."/database/migrations/{$migration}", database_path("migrations/{$migration}"), false) || $failed;
+        foreach (self::migrations() as $from => $to) {
+            $failed = ! $this->publish($from, $to, false) || $failed;
         }
 
         foreach ($this->directories() as $directory) {
@@ -151,13 +151,19 @@ class WebInstallCommand extends Command
     }
 
     /**
-     * The migrations serve's auth and database sessions need: users, password_reset_tokens and sessions.
+     * The migrations serve's auth and database sessions need (users, password_reset_tokens and sessions): serve's
+     * undated file => where the app keeps it. That is the app's own *_create_users_table.php when it has one, else
+     * 0001_01_01_000000_create_users_table.php, so it runs before any migration that references users.
      *
-     * @return array<int, string>
+     * @return array<string, string>
      */
-    protected function migrations(): array
+    public static function migrations(): array
     {
-        return ['0001_01_01_000000_create_users_table.php'];
+        $existing = glob(database_path('migrations/*_create_users_table.php')) ?: [];
+
+        return [
+            dirname(__DIR__, 4).'/database/migrations/create_users_table.php' => $existing[0] ?? database_path('migrations/0001_01_01_000000_create_users_table.php'),
+        ];
     }
 
     /**

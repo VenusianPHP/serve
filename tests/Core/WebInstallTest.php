@@ -20,7 +20,7 @@ afterEach(function () {
         WebApp::tearDown($this);
     }
 
-    @chmod($this->root.'/public', 0755);
+    is_dir($this->root.'/public') && chmod($this->root.'/public', 0755);
     $this->files->deleteDirectory($this->root);
 });
 
@@ -178,11 +178,31 @@ it('publishes the users migration, which never --force replaces, and migrates', 
     $migrated = $this->app->make(ConsoleKernel::class)->handle(new ArrayInput(['command' => 'migrate', '--force' => true]), new BufferedOutput);
 
     expect($status)->toBe(0)
-        ->and($published)->toBe(file_get_contents(dirname(__DIR__, 2).'/database/migrations/0001_01_01_000000_create_users_table.php'))
+        ->and($published)->toBe(file_get_contents(dirname(__DIR__, 2).'/database/migrations/create_users_table.php'))
         ->and($output)->toContain('database/migrations/0001_01_01_000000_create_users_table.php')
         ->and($kept)->toEndWith("// mine\n")
         ->and($migrated)->toBe(0)
         ->and(app('db.schema')->hasTable('users'))->toBeTrue()
         ->and(app('db.schema')->hasTable('password_reset_tokens'))->toBeTrue()
         ->and(app('db.schema')->hasTable('sessions'))->toBeTrue();
+});
+
+it('publishes the users migration over the app\'s own when it has one, never beside it', function () {
+    mkdir($this->root.'/database/migrations', 0755, true);
+    file_put_contents($this->root.'/database/migrations/2025_01_01_000000_create_users_table.php', '<?php // mine');
+
+    [$status, $output] = installWeb($this);
+
+    expect($status)->toBe(0)
+        ->and(glob($this->root.'/database/migrations/*_create_users_table.php'))->toBe([$this->root.'/database/migrations/2025_01_01_000000_create_users_table.php'])
+        ->and($output)->toContain('File [database/migrations/2025_01_01_000000_create_users_table.php] already exists');
+});
+
+it('publishes the users migration under the mariner-migrations tag', function () {
+    $this->app = WebApp::bootFrom($this->root);
+
+    $status = $this->app->make(ConsoleKernel::class)->handle(new ArrayInput(['command' => 'vendor:publish', '--tag' => 'mariner-migrations']), new BufferedOutput);
+
+    expect($status)->toBe(0)
+        ->and(file_get_contents($this->root.'/database/migrations/0001_01_01_000000_create_users_table.php'))->toBe(file_get_contents(dirname(__DIR__, 2).'/database/migrations/create_users_table.php'));
 });
